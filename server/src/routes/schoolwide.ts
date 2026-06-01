@@ -1,0 +1,69 @@
+import { Router, Request, Response } from 'express'
+import { PrismaClient, Shift } from '@prisma/client'
+import { requireAuth } from '../middleware/requireAuth'
+import { classifyByTime, trackFromShift } from '../services/shiftService'
+import { getProgramMonth } from '../services/headcountService'
+
+const router = Router()
+const prisma = new PrismaClient()
+
+// GET /api/school-wide — all subjects present/total for current shift (teacher auth)
+router.get('/', requireAuth, async (req: Request, res: Response) => {
+  const now = new Date()
+  const shift: Shift = (req.query.shift as Shift) ?? classifyByTime(now) ?? 'morning'
+  const currentMonth = now.getMonth() + 1
+
+  // Get all curriculum entries for this shift
+  const curriculumEntries = await prisma.curriculum.findMany({ where: { shift } })
+
+  const track = trackFromShift(shift)
+
+  const results = await Promise.all(
+    curriculumEntries.map(async (entry) => {
+      // Theoretical: students whose program_month = entry.programMonth and on this track
+      const allStudents = await prisma.student.findMany({
+        where: { isActive: true, track },
+        select: { id: true, cohortStartMonth: true },
+      })
+      const theoretical = allStudents.filter(
+        (s) => getProgramMonth(s.cohortStartMonth, currentMonth) === entry.programMonth
+      )
+
+      // Present: logged in today during this shift
+      const startOfDay = new Date(now)
+      startOfDay.setHours(0, 0, 0, 0)
+      const endOfDay = new Date(now)
+      endOfDay.setHours(23, 59, 59, 999)
+
+      const presentLogs = await prisma.attendanceLog.findMany({
+        where: {
+          shift,
+          loginTime: { gte: startOfDay, lte: endOfDay },
+          student: { isActive: true, track },
+        },
+        include: { student: { select: { cohortStartMonth: true } } },
+      })
+
+      const presentCount = presentLogs.filter(
+        (log) => getProgramMonth(log.student.cohortStartMonth, currentMonth) === entry.programMonth
+      ).length
+
+      const total = theoretical.length
+      const percentage = total > 0 ? Math.round((presentCount / total) * 100) : 0
+
+      return {
+        subject: entry.subject,
+        programMonth: entry.programMonth,
+        present: presentCount,
+        total,
+        percentage,
+      }
+    })
+  )
+
+  results.sort((a, b) => a.programMonth - b.programMonth)
+
+  res.json({ success: true, data: { shift, rows: results } })
+})
+
+export default router
