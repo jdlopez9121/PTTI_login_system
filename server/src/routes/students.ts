@@ -1,12 +1,12 @@
 import { Router, Request, Response } from 'express'
 import multer from 'multer'
-import { PrismaClient, Track } from '@prisma/client'
+import { Track } from '@prisma/client'
+import prisma from '../lib/prisma'
 import { validateLoginTime, hoursCredited, classifyByTime } from '../services/shiftService'
 import { importStudentsFromBuffer } from '../services/csvImportService'
 import { requireAuth } from '../middleware/requireAuth'
 
 const router = Router()
-const prisma = new PrismaClient()
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } })
 
 // POST /api/student/login — kiosk login, no auth required

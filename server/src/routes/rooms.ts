@@ -1,9 +1,8 @@
 import { Router, Request, Response } from 'express'
-import { PrismaClient } from '@prisma/client'
 import { requireAuth } from '../middleware/requireAuth'
+import prisma from '../lib/prisma'
 
 const router = Router()
-const prisma = new PrismaClient()
 
 // GET /api/rooms — list all rooms (no auth; needed for main login page dropdown)
 router.get('/', async (_req: Request, res: Response) => {

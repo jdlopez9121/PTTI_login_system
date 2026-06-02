@@ -1,11 +1,11 @@
 import { Router, Request, Response } from 'express'
-import { PrismaClient, Shift } from '@prisma/client'
+import { Shift } from '@prisma/client'
+import prisma from '../lib/prisma'
 import { requireAuth } from '../middleware/requireAuth'
 import { classifyByTime, trackFromShift } from '../services/shiftService'
 import { getProgramMonth } from '../services/headcountService'
 
 const router = Router()
-const prisma = new PrismaClient()
 
 // GET /api/school-wide — all subjects present/total for current shift (teacher auth)
 router.get('/', requireAuth, async (req: Request, res: Response) => {

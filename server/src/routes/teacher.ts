@@ -1,11 +1,11 @@
 import { Router, Request, Response } from 'express'
-import { PrismaClient, Shift } from '@prisma/client'
+import { Shift } from '@prisma/client'
 import { requireAuth } from '../middleware/requireAuth'
+import prisma from '../lib/prisma'
 import { classifyByTime } from '../services/shiftService'
 import { getTheoreticalHeadcount } from '../services/headcountService'
 
 const router = Router()
-const prisma = new PrismaClient()
 
 const VALID_SHIFTS: Shift[] = ['morning', 'afternoon', 'evening', 'night']
 

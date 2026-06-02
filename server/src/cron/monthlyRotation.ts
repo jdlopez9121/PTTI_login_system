@@ -1,7 +1,5 @@
 import cron from 'node-cron'
-import { PrismaClient } from '@prisma/client'
-
-const prisma = new PrismaClient()
+import prisma from '../lib/prisma'
 
 // Runs on the 1st of every month at midnight
 // Marks students who have completed the 5-month program as floating

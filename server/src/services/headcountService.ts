@@ -1,7 +1,6 @@
-import { PrismaClient, Shift } from '@prisma/client'
+import { Shift } from '@prisma/client'
 import { trackFromShift } from './shiftService'
-
-const prisma = new PrismaClient()
+import prisma from '../lib/prisma'
 
 export { trackFromShift }
 

@@ -1,7 +1,6 @@
 import * as XLSX from 'xlsx'
-import { PrismaClient, Track } from '@prisma/client'
-
-const prisma = new PrismaClient()
+import { Track } from '@prisma/client'
+import prisma from '../lib/prisma'
 
 interface ImportResult {
   added: number
