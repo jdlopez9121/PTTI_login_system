@@ -15,10 +15,6 @@ const SCHEDULE_NOTE = [
 
 type LoginMode = 'student' | 'teacher'
 
-function formatTime(isoString: string): string {
-  const d = new Date(isoString)
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-}
 
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -255,9 +251,6 @@ export default function LoginPage() {
                 fontSize: '0.875rem',
               }}>
                 <span style={{ fontWeight: 500 }}>{formatDisplayName(s.fullName)}</span>
-                <span style={{ color: 'var(--gray-600)', fontSize: '0.78rem', whiteSpace: 'nowrap', marginLeft: '0.5rem' }}>
-                  {formatTime(s.loginTime)}
-                </span>
               </li>
             ))}
           </ul>
