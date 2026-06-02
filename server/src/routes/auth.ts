@@ -214,10 +214,10 @@ router.delete('/teacher', requireAuth, async (req: Request, res: Response) => {
     return
   }
 
-  // Rooms are universal — nullify the reference so they remain available
+  // Reassign rooms to the acting teacher so the FK constraint is satisfied
   await prisma.room.updateMany({
     where: { createdBy: teacher.id },
-    data: { createdBy: null },
+    data: { createdBy: req.teacher!.teacherId },
   })
   await prisma.teacher.delete({ where: { id: teacher.id } })
 
