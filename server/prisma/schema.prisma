@@ -54,8 +54,8 @@ model Teacher {
 model Room {
   id        String   @id @default(uuid())
   name      String   @unique
-  createdBy String   @map("created_by")
-  teacher   Teacher  @relation(fields: [createdBy], references: [id])
+  createdBy String?  @map("created_by")
+  teacher   Teacher? @relation(fields: [createdBy], references: [id])
   createdAt DateTime @default(now()) @map("created_at")
 
   @@map("rooms")

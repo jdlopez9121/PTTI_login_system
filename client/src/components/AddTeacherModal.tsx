@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { addTeacher } from '../api'
+import { addTeacher, deleteTeacher } from '../api'
 
 interface Props {
   onClose: () => void
@@ -19,6 +19,28 @@ export default function AddTeacherModal({ onClose, onSaved }: Props) {
   const [shift, setShift] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [deleteEmail, setDeleteEmail] = useState('')
+  const [deleteLoading, setDeleteLoading] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
+
+  const handleDelete = async () => {
+    if (!deleteEmail.trim()) {
+      setDeleteError('Enter the teacher email to delete')
+      return
+    }
+    if (!window.confirm(`Permanently delete teacher "${deleteEmail}"? This cannot be undone.`)) return
+    setDeleteLoading(true)
+    setDeleteError('')
+    try {
+      const result = await deleteTeacher(deleteEmail.trim())
+      alert(result.message)
+      onSaved()
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete teacher')
+    } finally {
+      setDeleteLoading(false)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -123,6 +145,32 @@ export default function AddTeacherModal({ onClose, onSaved }: Props) {
             </button>
           </div>
         </form>
+
+        <hr style={{ margin: '1.25rem 0', border: 'none', borderTop: '1px solid var(--gray-200)' }} />
+
+        <div>
+          <p style={{ fontWeight: 600, marginBottom: '0.5rem', color: 'var(--gray-700)' }}>Delete Teacher</p>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}>
+            <input
+              className="input"
+              style={{ flex: 1 }}
+              type="email"
+              placeholder="teacher@ptti.edu"
+              value={deleteEmail}
+              onChange={(e) => setDeleteEmail(e.target.value)}
+            />
+            <button
+              type="button"
+              className="btn"
+              style={{ background: 'var(--red-600, #dc2626)', color: '#fff', whiteSpace: 'nowrap' }}
+              disabled={deleteLoading}
+              onClick={handleDelete}
+            >
+              {deleteLoading ? 'Deleting…' : 'Delete Teacher'}
+            </button>
+          </div>
+          {deleteError && <div className="alert alert-error" style={{ marginTop: '0.5rem' }}>{deleteError}</div>}
+        </div>
       </div>
     </div>
   )

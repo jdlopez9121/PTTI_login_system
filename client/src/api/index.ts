@@ -53,6 +53,8 @@ export const addTeacher = (data: {
 }) => request<{ id: string; name: string; email: string }>('/auth/add-teacher', {
   method: 'POST', body: JSON.stringify(data),
 })
+export const deleteTeacher = (email: string) =>
+  request<{ message: string }>('/auth/teacher', { method: 'DELETE', body: JSON.stringify({ email }) })
 export const logout = () => request<{ message: string }>('/auth/logout', { method: 'POST' })
 export const getMe = () => request<Teacher>('/auth/me')
 

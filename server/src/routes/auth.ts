@@ -194,6 +194,36 @@ router.post('/login', async (req: Request, res: Response) => {
   })
 })
 
+// DELETE /api/auth/teacher — remove a teacher account (cannot delete yourself)
+router.delete('/teacher', requireAuth, async (req: Request, res: Response) => {
+  const { email } = req.body as { email: string }
+  if (!email) {
+    res.status(400).json({ success: false, error: 'Email is required' })
+    return
+  }
+  if (email.toLowerCase() === req.teacher!.email.toLowerCase()) {
+    res.status(400).json({ success: false, error: 'You cannot delete your own account' })
+    return
+  }
+
+  const teacher = await prisma.teacher.findFirst({
+    where: { email: { equals: email, mode: 'insensitive' } },
+  })
+  if (!teacher) {
+    res.status(404).json({ success: false, error: 'No teacher found with that email' })
+    return
+  }
+
+  // Rooms are universal — nullify the reference so they remain available
+  await prisma.room.updateMany({
+    where: { createdBy: teacher.id },
+    data: { createdBy: null },
+  })
+  await prisma.teacher.delete({ where: { id: teacher.id } })
+
+  res.json({ success: true, data: { message: `${teacher.name} has been deleted` } })
+})
+
 // POST /api/auth/logout
 router.post('/logout', requireAuth, (_req: Request, res: Response) => {
   res.clearCookie('token')
