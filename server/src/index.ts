@@ -8,6 +8,15 @@ import roomsRouter from './routes/rooms'
 import schoolwideRouter from './routes/schoolwide'
 import { scheduleMonthlyRotation } from './cron/monthlyRotation'
 
+process.on('uncaughtException', (err) => {
+  console.error('[CRASH] uncaughtException:', err)
+  process.exit(1)
+})
+process.on('unhandledRejection', (reason) => {
+  console.error('[CRASH] unhandledRejection:', reason)
+  process.exit(1)
+})
+
 const app = express()
 const PORT = process.env.PORT ?? 3001
 
@@ -27,6 +36,12 @@ app.use('/api/school-wide', schoolwideRouter)
 
 // Health check
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }))
+
+// Global error handler — catches errors passed via next(err) in async routes
+app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error('[ERROR]', err)
+  res.status(500).json({ success: false, error: 'Internal server error' })
+})
 
 scheduleMonthlyRotation()
 
