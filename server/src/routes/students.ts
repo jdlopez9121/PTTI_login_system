@@ -76,7 +76,12 @@ router.get('/present', async (req: Request, res: Response) => {
     return
   }
 
+  const clientHour   = req.query.clientHour   !== undefined ? parseInt(String(req.query.clientHour))   : undefined
+  const clientMinute = req.query.clientMinute !== undefined ? parseInt(String(req.query.clientMinute)) : undefined
+
   const now = new Date()
+  if (clientHour   !== undefined) now.setHours(clientHour)
+  if (clientMinute !== undefined) now.setMinutes(clientMinute)
   const currentShift = classifyByTime(now)
 
   const startOfDay = new Date(now)

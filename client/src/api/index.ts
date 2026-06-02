@@ -84,10 +84,12 @@ export const manualAttendance = (data: {
 
 // Public kiosk: currently signed-in students for a room
 export type PresentStudent = { studentId: string; fullName: string; loginTime: string }
-export const getPresentStudents = (room: string) =>
-  request<{ shift: string | null; room: string; students: PresentStudent[] }>(
-    `/student/present?room=${encodeURIComponent(room)}`
+export const getPresentStudents = (room: string) => {
+  const now = new Date()
+  return request<{ shift: string | null; room: string; students: PresentStudent[] }>(
+    `/student/present?room=${encodeURIComponent(room)}&clientHour=${now.getHours()}&clientMinute=${now.getMinutes()}`
   )
+}
 
 // CSV import (multipart)
 export async function importCsv(file: File): Promise<ImportResult> {
