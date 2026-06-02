@@ -30,6 +30,6 @@ app.get('/api/health', (_req, res) => res.json({ status: 'ok' }))
 
 scheduleMonthlyRotation()
 
-app.listen(PORT, () => {
-  console.log(`PTTI server running on http://localhost:${PORT}`)
+app.listen(Number(PORT), '::', () => {
+  console.log(`PTTI server running on port ${PORT}`)
 })
