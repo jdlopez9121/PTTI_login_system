@@ -107,20 +107,43 @@ export default function TeacherDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {data?.presentStudents.length === 0 ? (
-                      <tr><td colSpan={data?.currentShift === 'all' ? 6 : 5} style={{ color: 'var(--gray-400)', textAlign: 'center' }}>No students logged in</td></tr>
-                    ) : data?.presentStudents.map((s) => (
-                      <tr key={s.logId ?? s.studentId}>
-                        <td>{s.studentId}</td>
-                        <td>{formatDisplayName(s.fullName)}</td>
-                        <td>{s.cohortStartMonth ? MONTHS[s.cohortStartMonth - 1] : '—'}</td>
-                        <td>{s.room}</td>
-                        {data?.currentShift === 'all' && (
-                          <td><span className="badge badge-blue">{(s as StudentResult & { shift?: string }).shift ?? '—'}</span></td>
-                        )}
-                        <td>{s.loginTime ? new Date(s.loginTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</td>
-                      </tr>
-                    ))}
+                    {(() => {
+                      if (!data || data.presentStudents.length === 0) {
+                        return <tr><td colSpan={data?.currentShift === 'all' ? 6 : 5} style={{ color: 'var(--gray-400)', textAlign: 'center' }}>No students logged in</td></tr>
+                      }
+                      const myIds = new Set(data.theoreticalHeadcount.map(s => s.studentId))
+                      const sorted = [...data.presentStudents].sort((a, b) => {
+                        return (myIds.has(a.studentId) ? 0 : 1) - (myIds.has(b.studentId) ? 0 : 1)
+                      })
+                      const firstOtherIdx = sorted.findIndex(s => !myIds.has(s.studentId))
+                      const colSpan = data.currentShift === 'all' ? 6 : 5
+                      return sorted.flatMap((s, i) => {
+                        const isMine = myIds.has(s.studentId)
+                        const dataRow = (
+                          <tr key={s.logId ?? s.studentId} style={{ opacity: isMine ? 1 : 0.6 }}>
+                            <td>{s.studentId}</td>
+                            <td>{formatDisplayName(s.fullName)}</td>
+                            <td>{s.cohortStartMonth ? MONTHS[s.cohortStartMonth - 1] : '—'}</td>
+                            <td>{s.room}</td>
+                            {data.currentShift === 'all' && (
+                              <td><span className="badge badge-blue">{(s as StudentResult & { shift?: string }).shift ?? '—'}</span></td>
+                            )}
+                            <td>{s.loginTime ? new Date(s.loginTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</td>
+                          </tr>
+                        )
+                        if (i === firstOtherIdx && firstOtherIdx > 0) {
+                          return [
+                            <tr key="other-divider">
+                              <td colSpan={colSpan} style={{ fontSize: '0.7rem', color: 'var(--gray-400)', padding: '0.2rem 0.5rem', background: '#f9fafb', fontStyle: 'italic', textAlign: 'center' }}>
+                                — other rooms —
+                              </td>
+                            </tr>,
+                            dataRow,
+                          ]
+                        }
+                        return [dataRow]
+                      })
+                    })()}
                   </tbody>
                 </table>
               </div>

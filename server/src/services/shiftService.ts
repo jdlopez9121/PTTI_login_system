@@ -41,19 +41,19 @@ const SHIFTS: ShiftDefinition[] = [
     shift: 'evening',
     officialStartHour: 15, officialStartMin: 0,
     detectStartHour: 14,   detectStartMin: 55,
-    detectEndHour: 18,     detectEndMin: 55,
+    detectEndHour: 18,     detectEndMin: 24,  // ends 1 min before night detection opens
     cutoffHour: 17,        cutoffMin: 30,   // 3:00 + 2:30
     durationHours: 4,
     label: '3:00 PM',
   },
   {
     shift: 'night',
-    officialStartHour: 19, officialStartMin: 0,
-    detectStartHour: 18,   detectStartMin: 55,
+    officialStartHour: 18, officialStartMin: 30,
+    detectStartHour: 18,   detectStartMin: 25,
     detectEndHour: 23,     detectEndMin: 0,
-    cutoffHour: 21,        cutoffMin: 30,   // 7:00 + 2:30
+    cutoffHour: 21,        cutoffMin: 30,   // 6:30 + 3:00
     durationHours: 4,
-    label: '7:00 PM',
+    label: '6:30 PM',
   },
 ]
 

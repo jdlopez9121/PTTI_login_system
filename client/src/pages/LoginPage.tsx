@@ -10,7 +10,7 @@ const SCHEDULE_NOTE = [
   { shift: 'Morning',   start: '8:00 AM',  cutoff: '10:30 AM' },
   { shift: 'Afternoon', start: '11:30 AM', cutoff: '2:00 PM'  },
   { shift: 'Evening',   start: '3:00 PM',  cutoff: '5:30 PM'  },
-  { shift: 'Night',     start: '7:00 PM',  cutoff: '9:30 PM'  },
+  { shift: 'Night',     start: '6:30 PM',  cutoff: '9:30 PM'  },
 ]
 
 type LoginMode = 'student' | 'teacher'
