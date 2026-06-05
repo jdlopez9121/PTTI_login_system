@@ -5,6 +5,7 @@ import LoginPage from './pages/LoginPage'
 import TeacherDashboard from './pages/TeacherDashboard'
 import SchoolWideView from './pages/SchoolWideView'
 import VerifyEmail from './pages/VerifyEmail'
+import GradesDashboard from './pages/GradesDashboard'
 import './index.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -15,6 +16,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <Route path="/teacher" element={<TeacherDashboard />} />
         <Route path="/school-wide" element={<SchoolWideView />} />
         <Route path="/verify-email" element={<VerifyEmail />} />
+        <Route path="/grades" element={<GradesDashboard />} />
       </Routes>
     </BrowserRouter>
   </React.StrictMode>

@@ -108,3 +108,96 @@ export const getSchoolWide = (shift?: string) => {
   const qs = shift ? `?shift=${shift}` : ''
   return request<{ shift: string; rows: SchoolWideRow[] }>(`/school-wide${qs}`)
 }
+
+// Grades — types
+export type GradeType = 'quiz' | 'project'
+
+export type GradeTemplate = {
+  id: string
+  teacherId: string
+  subject: string
+  type: GradeType
+  name: string
+  description: string | null
+  maxScore: number
+  createdAt: string
+}
+
+export type GradeEntry = {
+  id: string
+  templateId: string
+  studentId: string
+  score: number | null
+  isVerified: boolean
+  submittedBy: string | null
+  submittedAt: string | null
+  verifiedById: string | null
+  verifiedAt: string | null
+  createdAt: string
+}
+
+export type GradeStudentRow = {
+  studentDbId: string
+  studentId: string
+  fullName: string
+  attendancePct: number
+  total: number
+  entries: Record<string, GradeEntry>
+}
+
+export type GradeDashboardData = {
+  subject: string
+  cohortStartMonth: number
+  track: string
+  templates: GradeTemplate[]
+  students: GradeStudentRow[]
+}
+
+export type GradeCohort = { cohortStartMonth: number; track: string }
+
+export type PublicProjectData = {
+  subjects: string[]
+  templates: { id: string; subject: string; name: string; description: string | null }[]
+}
+
+// Grades — API calls
+export const getGradeCohorts = (subject: string) =>
+  request<GradeCohort[]>(`/grades/cohorts?subject=${encodeURIComponent(subject)}`)
+
+export const getGradeTemplates = (subject: string) =>
+  request<GradeTemplate[]>(`/grades/templates?subject=${encodeURIComponent(subject)}`)
+
+export const createGradeTemplate = (data: {
+  subject: string
+  type: GradeType
+  name: string
+  description?: string
+  maxScore?: number
+  batchAllCohorts?: boolean
+}) => request<GradeTemplate>('/grades/templates', { method: 'POST', body: JSON.stringify(data) })
+
+export const deleteGradeTemplate = (id: string) =>
+  request<null>(`/grades/templates/${id}`, { method: 'DELETE' })
+
+export const getGradeDashboard = (subject: string, cohortStartMonth: number, track: string) => {
+  const params = new URLSearchParams({ subject, cohortStartMonth: String(cohortStartMonth), track })
+  return request<GradeDashboardData>(`/grades/dashboard?${params}`)
+}
+
+export const updateGradeEntry = (entryId: string, data: { score?: number | null; isVerified?: boolean }) =>
+  request<GradeEntry>(`/grades/entries/${entryId}`, { method: 'PUT', body: JSON.stringify(data) })
+
+export const createGradeEntry = (templateId: string, studentDbId: string) =>
+  request<GradeEntry>('/grades/entries', { method: 'POST', body: JSON.stringify({ templateId, studentDbId }) })
+
+// Public (no auth)
+export const getPublicProjects = (subject?: string) => {
+  const qs = subject ? `?subject=${encodeURIComponent(subject)}` : ''
+  return request<PublicProjectData>(`/grades/projects/public${qs}`)
+}
+
+export const submitProject = (studentId: string, templateId: string) =>
+  request<GradeEntry>('/grades/projects/submit', {
+    method: 'POST',
+    body: JSON.stringify({ studentId, templateId }),
+  })

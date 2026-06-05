@@ -70,6 +70,10 @@ export default function TeacherDashboard() {
         </span>
         <div className="nav-actions">
           <button className="btn btn-secondary" style={{ background: 'rgba(255,255,255,0.15)', color: '#fff' }}
+            onClick={() => navigate('/grades')}>
+            Grades
+          </button>
+          <button className="btn btn-secondary" style={{ background: 'rgba(255,255,255,0.15)', color: '#fff' }}
             onClick={() => navigate('/school-wide')}>
             School-wide View
           </button>
