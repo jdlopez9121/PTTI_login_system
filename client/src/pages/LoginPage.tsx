@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { studentLogin, login, getPresentStudents, PresentStudent } from '../api'
 import { getRoomCookie, setRoomCookie } from '../utils/roomCookie'
 import { formatDisplayName } from '../utils/formatName'
-import ProjectSubmitModal from '../components/ProjectSubmitModal'
 
 const STATIC_ROOMS = ['PLC Room', 'AC Room', 'DC Room', 'MT/HT Room']
 
@@ -30,7 +29,6 @@ export default function LoginPage() {
 
   const [presentStudents, setPresentStudents] = useState<PresentStudent[]>([])
   const [presentShift, setPresentShift] = useState<string | null>(null)
-  const [showProjectSubmit, setShowProjectSubmit] = useState(false)
 
   useEffect(() => {
     const saved = getRoomCookie()
@@ -105,10 +103,9 @@ export default function LoginPage() {
       display: 'flex',
       justifyContent: 'center',
       alignItems: 'flex-start',
-      padding: '2rem 1rem 4rem',
+      padding: '2rem 1rem',
       gap: '2rem',
       flexWrap: 'wrap',
-      position: 'relative',
     }}>
       {/* Left — sign-in form */}
       <div className="card" style={{ width: 'min(440px, 100%)', textAlign: 'center', flexShrink: 0 }}>
@@ -221,20 +218,6 @@ export default function LoginPage() {
         )}
       </div>
 
-      {/* Submit Project button — sits below the login card */}
-      <div style={{ position: 'absolute', bottom: '1.5rem', left: '50%', transform: 'translateX(-50%)' }}>
-        <button
-          onClick={() => setShowProjectSubmit(true)}
-          style={{
-            background: 'none', border: '1px solid var(--gray-300)', borderRadius: 6,
-            padding: '0.4rem 1rem', fontSize: '0.8rem', color: 'var(--gray-600)',
-            cursor: 'pointer', whiteSpace: 'nowrap',
-          }}
-        >
-          Submit Project
-        </button>
-      </div>
-
       {/* Right — currently signed-in students */}
       <div className="card" style={{ minWidth: 280, flex: 1, maxWidth: 480 }}>
         <h2 style={{ fontSize: '1.1rem', marginBottom: '0.25rem' }}>Currently Signed In</h2>
@@ -277,10 +260,6 @@ export default function LoginPage() {
           {presentStudents.length} student{presentStudents.length !== 1 ? 's' : ''}
         </p>
       </div>
-
-      {showProjectSubmit && (
-        <ProjectSubmitModal onClose={() => setShowProjectSubmit(false)} />
-      )}
     </div>
   )
 }

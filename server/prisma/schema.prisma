@@ -20,11 +20,6 @@ enum Shift {
   night
 }
 
-enum GradeType {
-  quiz
-  project
-}
-
 model Student {
   id               String          @id @default(uuid())
   studentId        String          @unique @map("student_id")
@@ -35,7 +30,6 @@ model Student {
   isActive         Boolean         @default(true) @map("is_active")
   createdAt        DateTime        @default(now()) @map("created_at")
   attendanceLogs   AttendanceLog[]
-  gradeEntries     GradeEntry[]
 
   @@map("students")
 }
@@ -52,8 +46,7 @@ model Teacher {
   emailVerified Boolean  @default(false) @map("email_verified")
   verifyToken   String?  @map("verify_token")
   createdAt     DateTime @default(now()) @map("created_at")
-  rooms          Room[]
-  gradeTemplates GradeTemplate[]
+  rooms         Room[]
 
   @@map("teachers")
 }
@@ -90,38 +83,4 @@ model Curriculum {
 
   @@unique([subject, shift])
   @@map("curriculum")
-}
-
-model GradeTemplate {
-  id          String       @id @default(uuid())
-  teacherId   String       @map("teacher_id")
-  teacher     Teacher      @relation(fields: [teacherId], references: [id], onDelete: Cascade)
-  subject     String
-  type        GradeType
-  name        String
-  description String?
-  maxScore    Decimal      @default(100) @map("max_score") @db.Decimal(5, 2)
-  createdAt   DateTime     @default(now()) @map("created_at")
-  entries     GradeEntry[]
-
-  @@unique([teacherId, subject, name])
-  @@map("grade_templates")
-}
-
-model GradeEntry {
-  id           String        @id @default(uuid())
-  templateId   String        @map("template_id")
-  template     GradeTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  studentId    String        @map("student_id")
-  student      Student       @relation(fields: [studentId], references: [id])
-  score        Decimal?      @db.Decimal(5, 2)
-  isVerified   Boolean       @default(false) @map("is_verified")
-  submittedBy  String?       @map("submitted_by")
-  submittedAt  DateTime?     @map("submitted_at")
-  verifiedById String?       @map("verified_by_id")
-  verifiedAt   DateTime?     @map("verified_at")
-  createdAt    DateTime      @default(now()) @map("created_at")
-
-  @@unique([templateId, studentId])
-  @@map("grade_entries")
 }
