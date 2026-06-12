@@ -95,7 +95,7 @@ router.get('/dashboard', requireAuth, async (req: Request, res: Response, next: 
     res.json({
       success: true,
       data: {
-        teacher: { name: teacher.name, subject1: teacher.subject1, subject2: teacher.subject2, shift: teacher.shift },
+        teacher: { name: teacher.name, subject1: teacher.subject1, subject2: teacher.subject2, subject3: teacher.subject3, shift: teacher.shift },
         currentShift: showAll ? 'all' : targetShift,
         targetDate: targetDate.toISOString().split('T')[0],
         presentStudents,

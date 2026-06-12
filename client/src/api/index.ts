@@ -108,3 +108,63 @@ export const getSchoolWide = (shift?: string) => {
   const qs = shift ? `?shift=${shift}` : ''
   return request<{ shift: string; rows: SchoolWideRow[] }>(`/school-wide${qs}`)
 }
+
+// ---------------------------------------------------------------------------
+// Grades
+// ---------------------------------------------------------------------------
+export type GradeType = 'quiz' | 'project'
+
+export type GradeTemplate = {
+  id: string; subject: string; type: GradeType
+  name: string; description: string | null; order: number; isActive: boolean
+}
+
+export type QuizEntry    = { templateId: string; name: string; score: number | null }
+export type ProjectEntry = {
+  templateId: string; entryId: string; name: string; score: number | null
+  submittedAt: string | null; verifiedAt: string | null
+}
+export type GradeBreakdown = {
+  attendance: { signIns: number; expectedDays: number; percent: number }
+  quiz:    { earned: number; possible: number; percent: number; entries: QuizEntry[] }
+  project: { earned: number; possible: number; percent: number; entries: ProjectEntry[] }
+  total: number
+}
+export type StudentGrade = GradeBreakdown & {
+  studentId: string; fullName: string; dbId: string
+}
+export type GradeDashboard = {
+  subject: string; cohortMonth: number; cohortYear: number; students: StudentGrade[]
+}
+
+// Templates
+export const getTemplates = (subject: string) =>
+  request<GradeTemplate[]>(`/grades/templates?subject=${encodeURIComponent(subject)}`)
+export const createTemplate = (data: { subject: string; type: GradeType; name: string; description?: string; order?: number }) =>
+  request<GradeTemplate>('/grades/templates', { method: 'POST', body: JSON.stringify(data) })
+export const updateTemplate = (id: string, data: { name?: string; description?: string; order?: number }) =>
+  request<GradeTemplate>(`/grades/templates/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+export const deleteTemplate = (id: string) =>
+  request<{ message: string }>(`/grades/templates/${id}`, { method: 'DELETE' })
+export const batchCreateTemplates = (subject: string, templates: { type: GradeType; name: string; description?: string; order?: number }[]) =>
+  request<GradeTemplate[]>('/grades/templates/batch', { method: 'POST', body: JSON.stringify({ subject, templates }) })
+
+// Grade entries
+export const saveGradeEntry = (data: { templateId: string; studentDbId: string; score: number; cohortMonth: number; cohortYear: number }) =>
+  request('/grades/entries', { method: 'POST', body: JSON.stringify(data) })
+export const verifyProjectEntry = (entryId: string, score: number) =>
+  request(`/grades/entries/${entryId}/verify`, { method: 'POST', body: JSON.stringify({ score }) })
+
+// Dashboard
+export const getGradeDashboard = (subject: string, cohortMonth: number, cohortYear: number) =>
+  request<GradeDashboard>(`/grades/dashboard?subject=${encodeURIComponent(subject)}&cohortMonth=${cohortMonth}&cohortYear=${cohortYear}`)
+
+// Student kiosk
+export const getProjectTemplates = (subject: string) =>
+  request<{ id: string; name: string; description: string | null }[]>(`/grades/projects?subject=${encodeURIComponent(subject)}`)
+export const submitProject = (data: { studentId: string; subject: string; templateId: string }) =>
+  request<{ message: string; entryId: string }>('/grades/submit-project', { method: 'POST', body: JSON.stringify(data) })
+export const getStudentGrades = (studentId: string, subject: string) =>
+  request<GradeBreakdown & { studentId: string; fullName: string; subject: string; cohortMonth: number; cohortYear: number }>(
+    `/grades/student/${encodeURIComponent(studentId)}?subject=${encodeURIComponent(subject)}`
+  )

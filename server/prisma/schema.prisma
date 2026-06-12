@@ -20,6 +20,11 @@ enum Shift {
   night
 }
 
+enum GradeType {
+  quiz
+  project
+}
+
 model Student {
   id               String          @id @default(uuid())
   studentId        String          @unique @map("student_id")
@@ -30,23 +35,25 @@ model Student {
   isActive         Boolean         @default(true) @map("is_active")
   createdAt        DateTime        @default(now()) @map("created_at")
   attendanceLogs   AttendanceLog[]
+  gradeEntries     GradeEntry[]
 
   @@map("students")
 }
 
 model Teacher {
-  id            String   @id @default(uuid())
-  name          String
-  email         String   @unique
-  passwordHash  String   @map("password_hash")
-  subject1      String   @map("subject_1")
-  subject2      String?  @map("subject_2")
-  subject3      String?  @map("subject_3")
-  shift         Shift
-  emailVerified Boolean  @default(false) @map("email_verified")
-  verifyToken   String?  @map("verify_token")
-  createdAt     DateTime @default(now()) @map("created_at")
-  rooms         Room[]
+  id              String       @id @default(uuid())
+  name            String
+  email           String       @unique
+  passwordHash    String       @map("password_hash")
+  subject1        String       @map("subject_1")
+  subject2        String?      @map("subject_2")
+  subject3        String?      @map("subject_3")
+  shift           Shift
+  emailVerified   Boolean      @default(false) @map("email_verified")
+  verifyToken     String?      @map("verify_token")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  rooms           Room[]
+  verifiedEntries GradeEntry[]
 
   @@map("teachers")
 }
@@ -83,4 +90,40 @@ model Curriculum {
 
   @@unique([subject, shift])
   @@map("curriculum")
+}
+
+// A quiz or project that belongs to a subject (e.g. "PLC 1 — Quiz 1")
+model GradeTemplate {
+  id          String       @id @default(uuid())
+  subject     String
+  type        GradeType
+  name        String
+  description String?
+  order       Int          @default(0)
+  isActive    Boolean      @default(true) @map("is_active")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  entries     GradeEntry[]
+
+  @@unique([subject, name])
+  @@map("grade_templates")
+}
+
+// One grade record per student per template per cohort month
+model GradeEntry {
+  id           String        @id @default(uuid())
+  templateId   String        @map("template_id")
+  template     GradeTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  studentId    String        @map("student_id")
+  student      Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  cohortMonth  Int           @map("cohort_month")
+  cohortYear   Int           @map("cohort_year")
+  score        Float?
+  submittedAt  DateTime?     @map("submitted_at")
+  submittedBy  String?       @map("submitted_by")
+  verifiedAt   DateTime?     @map("verified_at")
+  verifiedById String?       @map("verified_by_id")
+  verifiedBy   Teacher?      @relation(fields: [verifiedById], references: [id], onDelete: SetNull)
+
+  @@unique([templateId, studentId, cohortMonth, cohortYear])
+  @@map("grade_entries")
 }

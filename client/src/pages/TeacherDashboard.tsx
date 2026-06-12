@@ -8,6 +8,7 @@ import AddStudentModal from '../components/AddStudentModal'
 import LoginStudentModal from '../components/LoginStudentModal'
 import CsvImportButton from '../components/CsvImportButton'
 import AddTeacherModal from '../components/AddTeacherModal'
+import GradeDashboard from '../components/GradeDashboard'
 
 const SHIFTS = ['morning', 'afternoon', 'evening', 'night']
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
@@ -24,6 +25,7 @@ export default function TeacherDashboard() {
   const [showAddStudent, setShowAddStudent] = useState(false)
   const [showLoginStudent, setShowLoginStudent] = useState(false)
   const [showAddTeacher, setShowAddTeacher] = useState(false)
+  const [showGrades, setShowGrades] = useState(false)
 
   const room = getRoomCookie() ?? 'Unknown Room'
 
@@ -72,6 +74,10 @@ export default function TeacherDashboard() {
           <button className="btn btn-secondary" style={{ background: 'rgba(255,255,255,0.15)', color: '#fff' }}
             onClick={() => navigate('/school-wide')}>
             School-wide View
+          </button>
+          <button className="btn btn-secondary" style={{ background: 'rgba(255,255,255,0.15)', color: '#fff' }}
+            onClick={() => setShowGrades(true)}>
+            Grades
           </button>
           <button className="btn btn-secondary" style={{ background: 'rgba(255,255,255,0.15)', color: '#fff' }}
             onClick={handleLogout}>
@@ -258,6 +264,14 @@ export default function TeacherDashboard() {
         <AddTeacherModal
           onClose={() => setShowAddTeacher(false)}
           onSaved={() => setShowAddTeacher(false)}
+        />
+      )}
+
+      {showGrades && data && (
+        <GradeDashboard
+          teacherSubjects={[data.teacher.subject1, data.teacher.subject2, data.teacher.subject3].filter((s): s is string => Boolean(s))}
+          teacherShift={data.teacher.shift}
+          onClose={() => setShowGrades(false)}
         />
       )}
 

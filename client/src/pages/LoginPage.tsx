@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { studentLogin, login, getPresentStudents, PresentStudent } from '../api'
 import { getRoomCookie, setRoomCookie } from '../utils/roomCookie'
 import { formatDisplayName } from '../utils/formatName'
+import SubmitProjectModal from '../components/SubmitProjectModal'
+import ViewGradesModal from '../components/ViewGradesModal'
 
 const STATIC_ROOMS = ['PLC Room', 'AC Room', 'DC Room', 'MT/HT Room']
 
@@ -29,6 +31,8 @@ export default function LoginPage() {
 
   const [presentStudents, setPresentStudents] = useState<PresentStudent[]>([])
   const [presentShift, setPresentShift] = useState<string | null>(null)
+  const [showSubmitProject, setShowSubmitProject] = useState(false)
+  const [showViewGrades, setShowViewGrades] = useState(false)
 
   useEffect(() => {
     const saved = getRoomCookie()
@@ -259,7 +263,31 @@ export default function LoginPage() {
         <p style={{ fontSize: '0.7rem', color: 'var(--gray-400, #9ca3af)', marginTop: '1rem', textAlign: 'right' }}>
           {presentStudents.length} student{presentStudents.length !== 1 ? 's' : ''}
         </p>
+
+        <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          <button
+            className="btn btn-secondary"
+            style={{ width: '100%', justifyContent: 'center' }}
+            onClick={() => setShowSubmitProject(true)}
+          >
+            Submit Project
+          </button>
+          <button
+            className="btn btn-secondary"
+            style={{ width: '100%', justifyContent: 'center' }}
+            onClick={() => setShowViewGrades(true)}
+          >
+            View Grades
+          </button>
+        </div>
       </div>
+
+      {showSubmitProject && (
+        <SubmitProjectModal room={selectedRoom} onClose={() => setShowSubmitProject(false)} />
+      )}
+      {showViewGrades && (
+        <ViewGradesModal room={selectedRoom} onClose={() => setShowViewGrades(false)} />
+      )}
     </div>
   )
 }
