@@ -98,7 +98,7 @@ export async function importCsv(file: File): Promise<ImportResult> {
   const form = new FormData()
   form.append('file', file)
   const res = await fetch(`${BASE}/students/import`, { method: 'POST', credentials: 'include', body: form })
-  const body = await res.json()
+  const body = await res.json().catch(() => ({ success: false, error: 'Unexpected server error' }))
   if (!body.success) throw new Error(body.error ?? 'Import failed')
   return body.data as ImportResult
 }

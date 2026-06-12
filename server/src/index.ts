@@ -7,14 +7,16 @@ import teacherRouter from './routes/teacher'
 import roomsRouter from './routes/rooms'
 import schoolwideRouter from './routes/schoolwide'
 import { scheduleMonthlyRotation } from './cron/monthlyRotation'
+import prisma from './lib/prisma'
 
 process.on('uncaughtException', (err) => {
   console.error('[CRASH] uncaughtException:', err)
   process.exit(1)
 })
+// Log but do NOT exit — a single failed Prisma query should not kill the server.
+// Routes must use try/catch + next(err) so errors reach the Express error handler.
 process.on('unhandledRejection', (reason) => {
-  console.error('[CRASH] unhandledRejection:', reason)
-  process.exit(1)
+  console.error('[WARN] unhandledRejection (server continues):', reason)
 })
 
 const app = express()
@@ -36,6 +38,17 @@ app.use('/api/school-wide', schoolwideRouter)
 
 // Health check
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }))
+
+// DB connectivity check — useful for Railway diagnostics
+app.get('/api/health/db', async (_req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`
+    res.json({ status: 'ok' })
+  } catch (err) {
+    console.error('[HEALTH/DB]', err)
+    res.status(503).json({ status: 'error', error: 'Database unreachable' })
+  }
+})
 
 // Global error handler — catches errors passed via next(err) in async routes
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
