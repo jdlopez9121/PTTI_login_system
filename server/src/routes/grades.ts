@@ -4,6 +4,7 @@ import prisma from '../lib/prisma'
 import { requireAuth } from '../middleware/requireAuth'
 import { getProgramMonth } from '../services/headcountService'
 import { calculateGrade, cohortCalendarMonth } from '../services/gradeService'
+import { trackFromShift } from '../services/shiftService'
 
 const router = Router()
 
@@ -245,8 +246,11 @@ router.get('/dashboard', requireAuth, async (req: Request, res: Response, next: 
       return
     }
 
-    // Find curriculum entry to get programMonth for this subject
-    const curriculum = await prisma.curriculum.findFirst({ where: { subject, shift: teacher.shift } })
+    // Find curriculum entry to get programMonth for this subject.
+    // Use track (day/night) instead of the teacher's stored shift so that a day-track
+    // teacher can access both morning and afternoon subjects (e.g. PLC 1 = afternoon, PLC 2 = morning).
+    const track = trackFromShift(teacher.shift)
+    const curriculum = await prisma.curriculum.findFirst({ where: { subject, track } })
     if (!curriculum) {
       res.status(404).json({ success: false, error: 'No curriculum entry found for this subject and shift' })
       return
@@ -271,7 +275,7 @@ router.get('/dashboard', requireAuth, async (req: Request, res: Response, next: 
       students.map(async (s) => {
         const grade = await calculateGrade(
           s.id, s.cohortStartMonth, curriculum.programMonth,
-          subject, teacher.shift, cohortMonth, cohortYear, now
+          subject, curriculum.shift, cohortMonth, cohortYear, now
         )
         return { studentId: s.studentId, fullName: s.fullName, dbId: s.id, ...grade }
       })
