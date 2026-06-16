@@ -11,7 +11,8 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
-    "add:teacher": "tsx src/scripts/createTeacher.ts"
+    "add:teacher": "tsx src/scripts/createTeacher.ts",
+    "test:quiz-import": "tsx tests/quizGradeImportService.test.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.14.0",

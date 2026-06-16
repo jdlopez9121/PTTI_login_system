@@ -136,6 +136,37 @@ export type StudentGrade = GradeBreakdown & {
 export type GradeDashboard = {
   subject: string; cohortMonth: number; cohortYear: number; students: StudentGrade[]
 }
+export type ParsedQuizGradeRow = {
+  rowNumber: number; firstName: string; lastName: string; fullName: string
+  normalizedName: string; assignmentName: string; points: number; maxPoints: number; score: number
+}
+export type ImportableQuizGradeRow = ParsedQuizGradeRow & { studentDbId: string; studentId: string; studentName: string }
+export type SkippedQuizGradeRow = { rowNumber: number; fullName: string; assignmentName: string; reason: string }
+export type QuizGradeImportPreview = {
+  rows: ParsedQuizGradeRow[]
+  errors: string[]
+  importable: ImportableQuizGradeRow[]
+  skipped: SkippedQuizGradeRow[]
+}
+export type QuizGradeImportApplyResult = {
+  imported: number
+  createdOrUpdatedTemplates: string[]
+  skipped: SkippedQuizGradeRow[]
+  errors: string[]
+  parseErrors: string[]
+}
+
+async function uploadQuizGradeSpreadsheet<T>(path: string, data: { file: File; subject: string; cohortMonth: number; cohortYear: number }): Promise<T> {
+  const form = new FormData()
+  form.append('file', data.file)
+  form.append('subject', data.subject)
+  form.append('cohortMonth', String(data.cohortMonth))
+  form.append('cohortYear', String(data.cohortYear))
+  const res = await fetch(`${BASE}${path}`, { method: 'POST', credentials: 'include', body: form })
+  const body = await res.json().catch(() => ({ success: false, error: 'Unexpected server error' }))
+  if (!body.success) throw new Error(body.error ?? 'Import failed')
+  return body.data as T
+}
 
 // Templates
 export const getTemplates = (subject: string) =>
@@ -158,6 +189,10 @@ export const verifyProjectEntry = (entryId: string, score: number) =>
 // Dashboard
 export const getGradeDashboard = (subject: string, cohortMonth: number, cohortYear: number) =>
   request<GradeDashboard>(`/grades/dashboard?subject=${encodeURIComponent(subject)}&cohortMonth=${cohortMonth}&cohortYear=${cohortYear}`)
+export const previewQuizGradeImport = (data: { file: File; subject: string; cohortMonth: number; cohortYear: number }) =>
+  uploadQuizGradeSpreadsheet<QuizGradeImportPreview>('/grades/import/preview', data)
+export const applyQuizGradeImport = (data: { file: File; subject: string; cohortMonth: number; cohortYear: number }) =>
+  uploadQuizGradeSpreadsheet<QuizGradeImportApplyResult>('/grades/import/apply', data)
 
 // Student kiosk
 export const getProjectTemplates = (subject: string) =>

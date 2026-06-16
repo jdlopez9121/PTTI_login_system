@@ -1,12 +1,38 @@
 import { Router, Request, Response, NextFunction } from 'express'
+import multer from 'multer'
 import { GradeType } from '@prisma/client'
 import prisma from '../lib/prisma'
 import { requireAuth } from '../middleware/requireAuth'
 import { getProgramMonth } from '../services/headcountService'
 import { calculateGrade, cohortCalendarMonth } from '../services/gradeService'
 import { trackFromShift } from '../services/shiftService'
+import {
+  applyQuizGradeImport,
+  parseQuizGradeWorkbook,
+  previewQuizGradeImport,
+  buildStudentNameIndex,
+} from '../services/quizGradeImportService'
 
 const router = Router()
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } })
+const XLSX_MIME_TYPES = new Set([
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.ms-excel',
+  'application/octet-stream',
+])
+
+function isXlsxUpload(file: Express.Multer.File): boolean {
+  const name = file.originalname.toLowerCase()
+  return name.endsWith('.xlsx') && (XLSX_MIME_TYPES.has(file.mimetype) || file.mimetype === '')
+}
+
+async function ensureTeacherCanAccessSubject(teacherId: string, subject: string): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  const teacher = await prisma.teacher.findUnique({ where: { id: teacherId } })
+  if (!teacher) return { ok: false, status: 404, error: 'Teacher not found' }
+  const teacherSubjects = [teacher.subject1, teacher.subject2, teacher.subject3].filter(Boolean)
+  if (!teacherSubjects.includes(subject)) return { ok: false, status: 403, error: 'You are not assigned to this subject' }
+  return { ok: true }
+}
 
 // ---------------------------------------------------------------------------
 // Template management (teacher auth)
@@ -218,6 +244,75 @@ router.post('/submit-project', async (req: Request, res: Response, next: NextFun
     })
   } catch (err) { next(err) }
 })
+
+// ---------------------------------------------------------------------------
+// Quiz grade spreadsheet import — teacher auth
+// ---------------------------------------------------------------------------
+function handleQuizGradeUpload(apply: boolean) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    upload.single('file')(req, res, async (err) => {
+      if (err?.code === 'LIMIT_FILE_SIZE') {
+        res.status(413).json({ success: false, error: 'File too large. Maximum allowed size is 5 MB.' })
+        return
+      }
+      if (err) { next(err); return }
+      if (!req.file) {
+        res.status(400).json({ success: false, error: 'No file uploaded' })
+        return
+      }
+      if (!isXlsxUpload(req.file)) {
+        res.status(400).json({ success: false, error: 'Upload a .xlsx spreadsheet. CSV files are not supported for this import.' })
+        return
+      }
+
+      const subject = String(req.body.subject ?? '').trim()
+      const cohortMonth = parseInt(String(req.body.cohortMonth ?? '0'))
+      const cohortYear = parseInt(String(req.body.cohortYear ?? '0'))
+      if (!subject || !cohortMonth || !cohortYear) {
+        res.status(400).json({ success: false, error: 'subject, cohortMonth, and cohortYear required' })
+        return
+      }
+
+      try {
+        const access = await ensureTeacherCanAccessSubject(req.teacher!.teacherId, subject)
+        if (!access.ok) {
+          res.status(access.status).json({ success: false, error: access.error })
+          return
+        }
+
+        const parsed = parseQuizGradeWorkbook(req.file.buffer)
+        const students = await prisma.student.findMany({
+          where: { isActive: true },
+          select: { id: true, studentId: true, fullName: true, cohortStartMonth: true },
+        })
+        const preview = previewQuizGradeImport(parsed.rows, buildStudentNameIndex(students))
+
+        if (!apply) {
+          res.json({ success: true, data: { ...parsed, ...preview } })
+          return
+        }
+
+        if (parsed.errors.length > 0 && preview.importable.length === 0) {
+          res.status(400).json({ success: false, error: 'No valid rows to import.', data: { ...parsed, ...preview } })
+          return
+        }
+
+        const result = await applyQuizGradeImport({
+          prisma,
+          rows: parsed.rows,
+          subject,
+          cohortMonth,
+          cohortYear,
+          teacherId: req.teacher!.teacherId,
+        })
+        res.json({ success: true, data: { ...result, parseErrors: parsed.errors } })
+      } catch (e) { next(e) }
+    })
+  }
+}
+
+router.post('/import/preview', requireAuth, handleQuizGradeUpload(false))
+router.post('/import/apply', requireAuth, handleQuizGradeUpload(true))
 
 // ---------------------------------------------------------------------------
 // Grade dashboard — teacher view
