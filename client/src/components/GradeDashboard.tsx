@@ -9,6 +9,10 @@ import {
   deleteTemplate,
   saveGradeEntry,
   verifyProjectEntry,
+  previewQuizGradeImport,
+  applyQuizGradeImport,
+  type QuizGradeImportPreview,
+  type QuizGradeImportApplyResult,
 } from '../api'
 import { formatDisplayName } from '../utils/formatName'
 
@@ -35,6 +39,10 @@ export default function GradeDashboard({ teacherSubjects, onClose }: Props) {
   const [scoreInputs, setScoreInputs] = useState<Record<string, string>>({})
   const [newTemplate, setNewTemplate] = useState<{ type: GradeType; name: string; description: string }>({ type: 'quiz', name: '', description: '' })
   const [addingTemplate, setAddingTemplate] = useState(false)
+  const [importFile, setImportFile] = useState<File | null>(null)
+  const [importPreview, setImportPreview] = useState<QuizGradeImportPreview | null>(null)
+  const [importResult, setImportResult] = useState<QuizGradeImportApplyResult | null>(null)
+  const [importing, setImporting] = useState(false)
 
   const loadData = useCallback(async () => {
     if (!subject) return
@@ -129,6 +137,38 @@ export default function GradeDashboard({ teacherSubjects, onClose }: Props) {
     }
   }
 
+  const handlePreviewImport = async () => {
+    if (!importFile) { setError('Choose an .xlsx quiz spreadsheet first'); return }
+    setImporting(true)
+    setError('')
+    setImportResult(null)
+    try {
+      const preview = await previewQuizGradeImport({ file: importFile, subject, cohortMonth, cohortYear })
+      setImportPreview(preview)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to preview quiz grades')
+    } finally {
+      setImporting(false)
+    }
+  }
+
+  const handleApplyImport = async () => {
+    if (!importFile) { setError('Choose an .xlsx quiz spreadsheet first'); return }
+    setImporting(true)
+    setError('')
+    try {
+      const result = await applyQuizGradeImport({ file: importFile, subject, cohortMonth, cohortYear })
+      setImportResult(result)
+      setImportPreview(null)
+      setImportFile(null)
+      await loadData()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to import quiz grades')
+    } finally {
+      setImporting(false)
+    }
+  }
+
   const quizTemplates = templates.filter((t) => t.type === 'quiz')
   const projectTemplates = templates.filter((t) => t.type === 'project')
 
@@ -181,6 +221,58 @@ export default function GradeDashboard({ teacherSubjects, onClose }: Props) {
         </div>
 
         {error && <div className="alert alert-error" style={{ marginBottom: '0.75rem' }}>{error}</div>}
+
+        <div style={{
+          background: 'var(--gray-50)', border: '1px solid var(--gray-200)',
+          borderRadius: 8, padding: '0.75rem', marginBottom: '0.75rem', flexShrink: 0,
+        }}>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+            <div className="form-group" style={{ marginBottom: 0, flex: 1, minWidth: 220 }}>
+              <label style={{ fontSize: '0.78rem' }}>Import quiz grades (.xlsx)</label>
+              <input
+                className="input"
+                type="file"
+                accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                onChange={(e) => {
+                  setImportFile(e.target.files?.[0] ?? null)
+                  setImportPreview(null)
+                  setImportResult(null)
+                }}
+              />
+            </div>
+            <button className="btn btn-secondary" onClick={handlePreviewImport} disabled={importing || !importFile}>
+              {importing ? 'Working…' : 'Preview'}
+            </button>
+            <button className="btn btn-primary" onClick={handleApplyImport} disabled={importing || !importPreview || importPreview.importable.length === 0}>
+              Confirm Import
+            </button>
+          </div>
+          <p style={{ fontSize: '0.75rem', color: 'var(--gray-500)', marginTop: '0.45rem' }}>
+            Required columns: First Name, Last Name, Assignments, Points, Max Points. CSV files are not imported in this pass.
+          </p>
+          {importPreview && (
+            <div style={{ marginTop: '0.6rem', fontSize: '0.8rem' }}>
+              <strong>{importPreview.importable.length}</strong> row{importPreview.importable.length !== 1 ? 's' : ''} ready ·{' '}
+              <strong>{importPreview.skipped.length + importPreview.errors.length}</strong> issue{importPreview.skipped.length + importPreview.errors.length !== 1 ? 's' : ''}
+              {importPreview.importable.slice(0, 5).map((row) => (
+                <div key={`${row.rowNumber}-${row.studentDbId}-${row.assignmentName}`} style={{ color: 'var(--gray-600)' }}>
+                  Row {row.rowNumber}: {formatDisplayName(row.studentName)} — {row.assignmentName} = {row.score}%
+                </div>
+              ))}
+              {[...importPreview.errors, ...importPreview.skipped.map((row) => `Row ${row.rowNumber}: ${row.reason}`)].slice(0, 6).map((message) => (
+                <div key={message} style={{ color: 'var(--red)' }}>{message}</div>
+              ))}
+              {(importPreview.importable.length > 5 || importPreview.errors.length + importPreview.skipped.length > 6) && (
+                <div style={{ color: 'var(--gray-500)' }}>Additional rows omitted from preview.</div>
+              )}
+            </div>
+          )}
+          {importResult && (
+            <div className="alert alert-success" style={{ marginTop: '0.6rem' }}>
+              Imported {importResult.imported} quiz grade{importResult.imported !== 1 ? 's' : ''}. {importResult.skipped.length} row{importResult.skipped.length !== 1 ? 's were' : ' was'} skipped.
+            </div>
+          )}
+        </div>
 
         {/* Template manager panel */}
         {showTemplateManager && (
