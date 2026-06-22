@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getDashboard, logout, getMe, type DashboardData, type StudentResult } from '../api'
 import { classifyCurrentShift } from '../utils/shiftUtils'
@@ -11,6 +11,7 @@ import AddTeacherModal from '../components/AddTeacherModal'
 import GradeDashboard from '../components/GradeDashboard'
 import WorkOrderDashboard from '../components/WorkOrderDashboard'
 import ActiveNotificationsPanel from '../components/ActiveNotificationsPanel'
+import ErrorBoundary from '../components/ErrorBoundary'
 
 const SHIFTS = ['morning', 'afternoon', 'evening', 'night']
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
@@ -29,25 +30,31 @@ export default function TeacherDashboard() {
   const [showAddTeacher, setShowAddTeacher] = useState(false)
   const [showGrades, setShowGrades] = useState(false)
   const [showWorkOrders, setShowWorkOrders] = useState(false)
+  const lastLoadRequestRef = useRef(0)
 
   const room = getRoomCookie() ?? 'Unknown Room'
 
   const load = useCallback(async (dateOverride?: string, shiftOverride?: string) => {
+    const requestId = ++lastLoadRequestRef.current
     setLoading(true)
     setError('')
     try {
       const date = dateOverride ?? filterDate
       const shift = shiftOverride !== undefined ? (shiftOverride || undefined) : (filterShift || undefined)
       const d = await getDashboard(date, shift)
+      if (requestId !== lastLoadRequestRef.current) return
       setData(d)
     } catch (err) {
+      if (requestId !== lastLoadRequestRef.current) return
       if (err instanceof Error && err.message.includes('authenticated')) {
         navigate('/')
       } else {
         setError(err instanceof Error ? err.message : 'Failed to load data')
       }
     } finally {
-      setLoading(false)
+      if (requestId === lastLoadRequestRef.current) {
+        setLoading(false)
+      }
     }
   }, [filterDate, filterShift, navigate])
 
@@ -64,6 +71,7 @@ export default function TeacherDashboard() {
   }
 
   return (
+    <ErrorBoundary>
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       {/* Nav */}
       <nav className="nav">
@@ -289,5 +297,6 @@ export default function TeacherDashboard() {
       )}
 
     </div>
+    </ErrorBoundary>
   )
 }

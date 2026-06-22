@@ -102,6 +102,7 @@ model Teacher {
   shift                    Shift
   emailVerified            Boolean                 @default(false) @map("email_verified")
   verifyToken              String?                 @map("verify_token")
+  verifyTokenExpiresAt     DateTime?               @map("verify_token_expires_at")
   createdAt                DateTime                @default(now()) @map("created_at")
   rooms                    Room[]
   verifiedEntries          GradeEntry[]

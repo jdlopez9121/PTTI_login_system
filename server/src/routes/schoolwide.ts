@@ -18,48 +18,37 @@ router.get('/', requireAuth, async (req: Request, res: Response) => {
 
   const track = trackFromShift(shift)
 
-  const results = await Promise.all(
-    curriculumEntries.map(async (entry) => {
-      // Theoretical: students whose program_month = entry.programMonth and on this track
-      const allStudents = await prisma.student.findMany({
-        where: { isActive: true, track },
-        select: { id: true, cohortStartMonth: true },
-      })
-      const theoretical = allStudents.filter(
-        (s) => getProgramMonth(s.cohortStartMonth, currentMonth) === entry.programMonth
-      )
+  const startOfDay = new Date(now)
+  startOfDay.setHours(0, 0, 0, 0)
+  const endOfDay = new Date(now)
+  endOfDay.setHours(23, 59, 59, 999)
 
-      // Present: logged in today during this shift
-      const startOfDay = new Date(now)
-      startOfDay.setHours(0, 0, 0, 0)
-      const endOfDay = new Date(now)
-      endOfDay.setHours(23, 59, 59, 999)
+  const [allStudents, presentLogs] = await Promise.all([
+    prisma.student.findMany({
+      where: { isActive: true, track },
+      select: { id: true, cohortStartMonth: true },
+    }),
+    prisma.attendanceLog.findMany({
+      where: {
+        shift,
+        loginTime: { gte: startOfDay, lte: endOfDay },
+        student: { isActive: true, track },
+      },
+      include: { student: { select: { cohortStartMonth: true } } },
+    }),
+  ])
 
-      const presentLogs = await prisma.attendanceLog.findMany({
-        where: {
-          shift,
-          loginTime: { gte: startOfDay, lte: endOfDay },
-          student: { isActive: true, track },
-        },
-        include: { student: { select: { cohortStartMonth: true } } },
-      })
-
-      const presentCount = presentLogs.filter(
-        (log) => getProgramMonth(log.student.cohortStartMonth, currentMonth) === entry.programMonth
-      ).length
-
-      const total = theoretical.length
-      const percentage = total > 0 ? Math.round((presentCount / total) * 100) : 0
-
-      return {
-        subject: entry.subject,
-        programMonth: entry.programMonth,
-        present: presentCount,
-        total,
-        percentage,
-      }
-    })
-  )
+  const results = curriculumEntries.map((entry) => {
+    const theoretical = allStudents.filter(
+      (s) => getProgramMonth(s.cohortStartMonth, currentMonth) === entry.programMonth
+    )
+    const presentCount = presentLogs.filter(
+      (log) => getProgramMonth(log.student.cohortStartMonth, currentMonth) === entry.programMonth
+    ).length
+    const total = theoretical.length
+    const percentage = total > 0 ? Math.round((presentCount / total) * 100) : 0
+    return { subject: entry.subject, programMonth: entry.programMonth, present: presentCount, total, percentage }
+  })
 
   results.sort((a, b) => a.programMonth - b.programMonth)
 

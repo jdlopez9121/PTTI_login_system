@@ -34,6 +34,12 @@ async function ensureTeacherCanAccessSubject(teacherId: string, subject: string)
   return { ok: true }
 }
 
+async function ensureTeacherCanAccessTemplate(teacherId: string, templateId: string): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  const template = await prisma.gradeTemplate.findUnique({ where: { id: templateId }, select: { subject: true } })
+  if (!template) return { ok: false, status: 404, error: 'Grade template not found' }
+  return ensureTeacherCanAccessSubject(teacherId, template.subject)
+}
+
 // ---------------------------------------------------------------------------
 // Template management (teacher auth)
 // ---------------------------------------------------------------------------
@@ -44,6 +50,11 @@ router.get('/templates', requireAuth, async (req: Request, res: Response, next: 
     const subject = String(req.query.subject ?? '').trim()
     if (!subject) {
       res.status(400).json({ success: false, error: 'subject query param required' })
+      return
+    }
+    const access = await ensureTeacherCanAccessSubject(req.teacher!.teacherId, subject)
+    if (!access.ok) {
+      res.status(access.status).json({ success: false, error: access.error })
       return
     }
     const templates = await prisma.gradeTemplate.findMany({
@@ -60,7 +71,8 @@ router.post('/templates', requireAuth, async (req: Request, res: Response, next:
     const { subject, type, name, description, order } = req.body as {
       subject: string; type: GradeType; name: string; description?: string; order?: number
     }
-    if (!subject || !type || !name) {
+    const normalizedSubject = String(subject ?? '').trim()
+    if (!normalizedSubject || !type || !name?.trim()) {
       res.status(400).json({ success: false, error: 'subject, type, and name are required' })
       return
     }
@@ -68,8 +80,13 @@ router.post('/templates', requireAuth, async (req: Request, res: Response, next:
       res.status(400).json({ success: false, error: 'type must be quiz or project' })
       return
     }
+    const access = await ensureTeacherCanAccessSubject(req.teacher!.teacherId, normalizedSubject)
+    if (!access.ok) {
+      res.status(access.status).json({ success: false, error: access.error })
+      return
+    }
     const template = await prisma.gradeTemplate.create({
-      data: { subject, type, name, description, order: order ?? 0 },
+      data: { subject: normalizedSubject, type, name: name.trim(), description, order: order ?? 0 },
     })
     res.status(201).json({ success: true, data: template })
   } catch (err) { next(err) }
@@ -80,6 +97,11 @@ router.put('/templates/:id', requireAuth, async (req: Request, res: Response, ne
   try {
     const { name, description, order } = req.body as {
       name?: string; description?: string; order?: number
+    }
+    const access = await ensureTeacherCanAccessTemplate(req.teacher!.teacherId, req.params.id)
+    if (!access.ok) {
+      res.status(access.status).json({ success: false, error: access.error })
+      return
     }
     const template = await prisma.gradeTemplate.update({
       where: { id: req.params.id },
@@ -92,6 +114,11 @@ router.put('/templates/:id', requireAuth, async (req: Request, res: Response, ne
 // DELETE /api/grades/templates/:id — soft delete (sets isActive = false)
 router.delete('/templates/:id', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
+    const access = await ensureTeacherCanAccessTemplate(req.teacher!.teacherId, req.params.id)
+    if (!access.ok) {
+      res.status(access.status).json({ success: false, error: access.error })
+      return
+    }
     await prisma.gradeTemplate.update({
       where: { id: req.params.id },
       data: { isActive: false },
@@ -107,16 +134,22 @@ router.post('/templates/batch', requireAuth, async (req: Request, res: Response,
       subject: string
       templates: { type: GradeType; name: string; description?: string; order?: number }[]
     }
-    if (!subject || !Array.isArray(templates) || templates.length === 0) {
+    const normalizedSubject = String(subject ?? '').trim()
+    if (!normalizedSubject || !Array.isArray(templates) || templates.length === 0) {
       res.status(400).json({ success: false, error: 'subject and templates array required' })
+      return
+    }
+    const access = await ensureTeacherCanAccessSubject(req.teacher!.teacherId, normalizedSubject)
+    if (!access.ok) {
+      res.status(access.status).json({ success: false, error: access.error })
       return
     }
     const created = await prisma.$transaction(
       templates.map((t, i) =>
         prisma.gradeTemplate.upsert({
-          where: { subject_name: { subject, name: t.name } },
+          where: { subject_name: { subject: normalizedSubject, name: t.name } },
           update: { isActive: true, description: t.description, order: t.order ?? i },
-          create: { subject, type: t.type, name: t.name, description: t.description, order: t.order ?? i },
+          create: { subject: normalizedSubject, type: t.type, name: t.name, description: t.description, order: t.order ?? i },
         })
       )
     )
@@ -136,6 +169,16 @@ router.post('/entries', requireAuth, async (req: Request, res: Response, next: N
     }
     if (!templateId || !studentDbId || score === undefined || !cohortMonth || !cohortYear) {
       res.status(400).json({ success: false, error: 'templateId, studentDbId, score, cohortMonth, cohortYear required' })
+      return
+    }
+    const template = await prisma.gradeTemplate.findUnique({ where: { id: templateId }, select: { subject: true } })
+    if (!template) {
+      res.status(404).json({ success: false, error: 'Grade template not found' })
+      return
+    }
+    const access = await ensureTeacherCanAccessSubject(req.teacher!.teacherId, template.subject)
+    if (!access.ok) {
+      res.status(access.status).json({ success: false, error: access.error })
       return
     }
     const entry = await prisma.gradeEntry.upsert({
@@ -161,6 +204,19 @@ router.post('/entries/:id/verify', requireAuth, async (req: Request, res: Respon
     const { score } = req.body as { score: number }
     if (score === undefined) {
       res.status(400).json({ success: false, error: 'score required' })
+      return
+    }
+    const entryRecord = await prisma.gradeEntry.findUnique({
+      where: { id: req.params.id },
+      select: { template: { select: { subject: true } } },
+    })
+    if (!entryRecord) {
+      res.status(404).json({ success: false, error: 'Grade entry not found' })
+      return
+    }
+    const access = await ensureTeacherCanAccessSubject(req.teacher!.teacherId, entryRecord.template.subject)
+    if (!access.ok) {
+      res.status(access.status).json({ success: false, error: access.error })
       return
     }
     const entry = await prisma.gradeEntry.update({

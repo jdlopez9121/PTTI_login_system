@@ -37,15 +37,15 @@ router.get('/dashboard', requireAuth, async (req: Request, res: Response, next: 
     endOfDay.setHours(23, 59, 59, 999)
 
     // "all" = show every shift for the day
-    const showAll = String(req.query.shift) === 'all'
+    const shiftQuery = String(req.query.shift ?? '').trim()
+    const showAll = shiftQuery === 'all'
 
     let targetShift: Shift
     if (!showAll) {
-      if (req.query.shift && VALID_SHIFTS.includes(String(req.query.shift) as Shift)) {
-        targetShift = String(req.query.shift) as Shift
+      if (VALID_SHIFTS.includes(shiftQuery as Shift)) {
+        targetShift = shiftQuery as Shift
       } else {
-        // Use client-provided shift (detected by browser's local clock)
-        targetShift = (req.query.shift as Shift) ?? classifyByTime(new Date()) ?? teacher.shift
+        targetShift = classifyByTime(new Date()) ?? teacher.shift
       }
     } else {
       targetShift = teacher.shift // fallback for headcount only; present uses all
