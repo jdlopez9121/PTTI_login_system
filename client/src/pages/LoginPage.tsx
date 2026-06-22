@@ -279,6 +279,13 @@ export default function LoginPage() {
           >
             View Grades
           </button>
+          <button
+            className="btn btn-secondary"
+            style={{ width: '100%', justifyContent: 'center' }}
+            onClick={() => navigate('/student-work-orders')}
+          >
+            Student Work Orders
+          </button>
         </div>
       </div>
 

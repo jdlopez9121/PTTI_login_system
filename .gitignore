@@ -7,3 +7,5 @@ build/
 *.log
 coverage/
 .cache/
+.data/
+server/.data/

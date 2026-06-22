@@ -110,6 +110,193 @@ export const getSchoolWide = (shift?: string) => {
 }
 
 // ---------------------------------------------------------------------------
+// Notifications
+// ---------------------------------------------------------------------------
+export type NotificationAudience = 'all' | 'subject' | 'shift' | 'room'
+export type NotificationPriority = 'normal' | 'important' | 'urgent'
+export type NotificationSource = 'manual' | 'calendar' | 'email'
+export type TeacherNotification = {
+  id: string
+  title: string
+  body: string
+  audience: NotificationAudience
+  subject: string | null
+  shift: string | null
+  roomName: string | null
+  priority: NotificationPriority
+  source: NotificationSource
+  sourceExternalId: string | null
+  sourceCalendarId: string | null
+  sourceStartAt: string | null
+  sourceEndAt: string | null
+  startsAt: string
+  expiresAt: string
+  createdById: string | null
+  archivedAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+export type CreateNotificationInput = {
+  title: string
+  body: string
+  audience?: NotificationAudience
+  subject?: string | null
+  shift?: string | null
+  roomName?: string | null
+  priority?: NotificationPriority
+}
+export type ActiveNotificationFilters = {
+  subject?: string
+  shift?: string
+  roomName?: string
+}
+export const getActiveNotifications = (filters: ActiveNotificationFilters = {}) => {
+  const params = new URLSearchParams()
+  if (filters.subject) params.set('subject', filters.subject)
+  if (filters.shift) params.set('shift', filters.shift)
+  if (filters.roomName) params.set('roomName', filters.roomName)
+  const qs = params.toString()
+  return request<TeacherNotification[]>(`/notifications/active${qs ? `?${qs}` : ''}`)
+}
+export const createNotification = (data: CreateNotificationInput) =>
+  request<TeacherNotification>('/notifications', { method: 'POST', body: JSON.stringify(data) })
+export const archiveNotification = (id: string) =>
+  request<TeacherNotification>(`/notifications/${id}/archive`, { method: 'POST' })
+
+// ---------------------------------------------------------------------------
+// Work Orders
+// ---------------------------------------------------------------------------
+export type WorkOrderStatus = 'open' | 'assigned' | 'in_progress' | 'submitted_completed' | 'completed' | 'cancelled'
+export type WorkOrderAssigneeType = 'student' | 'teacher' | null
+export type WorkOrderMessageVisibility = 'teacher_only'
+export type WorkOrderTemplate = {
+  id: string
+  name: string
+  versionLabel: string | null
+  description: string | null
+  photoUrl: string | null
+  photoPath?: string | null
+  photoMimeType?: string | null
+  photoSizeBytes?: number | null
+  originalFilename?: string | null
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+export type WorkOrderAssignees = {
+  students: { id: string; studentId: string; fullName: string }[]
+  teachers: { id: string; name: string; email: string }[]
+}
+export type WorkOrderMessage = {
+  id: string
+  body: string
+  visibility: WorkOrderMessageVisibility
+  createdAt: string
+  teacher?: { id: string; name: string } | null
+}
+export type WorkOrderTicket = {
+  id: string
+  templateId: string | null
+  title: string
+  issueDescription: string | null
+  workPerformed: string | null
+  templateNameSnapshot: string | null
+  templateDescriptionSnapshot: string | null
+  templatePhotoPathSnapshot?: string | null
+  templatePhotoUrlSnapshot: string | null
+  templatePhotoMimeTypeSnapshot?: string | null
+  templatePhotoSizeBytesSnapshot?: number | null
+  templateVersionSnapshot: string | null
+  status: WorkOrderStatus
+  assigneeType: WorkOrderAssigneeType
+  assigneeStudentId?: string | null
+  assigneeTeacherId?: string | null
+  assigneeStudent?: { id: string; studentId: string; fullName: string } | null
+  assigneeTeacher?: { id: string; name: string; email: string } | null
+  createdBy?: { id: string; name: string; email: string } | null
+  assignedAt?: string | null
+  submittedCompletedAt?: string | null
+  completedAt?: string | null
+  createdAt: string
+  updatedAt: string
+  messages?: WorkOrderMessage[]
+}
+export type WorkOrderNotification = {
+  id: string
+  ticketId: string
+  teacherId: string
+  type: 'submitted_completed' | 'completed'
+  message: string
+  readAt: string | null
+  createdAt: string
+  ticket?: { id: string; title: string; status: WorkOrderStatus } | null
+}
+export type StudentWorkOrderTicket = Pick<WorkOrderTicket,
+  'id' | 'title' | 'issueDescription' | 'workPerformed' | 'templateNameSnapshot' |
+  'templateDescriptionSnapshot' | 'templatePhotoPathSnapshot' | 'templatePhotoUrlSnapshot' |
+  'templatePhotoMimeTypeSnapshot' | 'templatePhotoSizeBytesSnapshot' | 'templateVersionSnapshot' |
+  'status' | 'assignedAt' | 'submittedCompletedAt' | 'completedAt' | 'createdAt' | 'updatedAt'
+>
+
+async function requestMultipart<T>(path: string, form: FormData, method = 'POST'): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, { method, credentials: 'include', body: form })
+  const body = await res.json().catch(() => ({ success: false, error: 'Unexpected server error' }))
+  if (!body.success) throw new Error(body.error ?? 'Request failed')
+  return body.data as T
+}
+
+export const getWorkOrderTemplates = () => request<WorkOrderTemplate[]>('/work-orders/templates')
+export const createWorkOrderTemplate = (data: { name: string; versionLabel: string; description?: string; photo: File }) => {
+  const form = new FormData()
+  form.append('name', data.name)
+  form.append('versionLabel', data.versionLabel)
+  if (data.description) form.append('description', data.description)
+  form.append('photo', data.photo)
+  return requestMultipart<WorkOrderTemplate>('/work-orders/templates', form)
+}
+export const updateWorkOrderTemplate = (id: string, data: { name?: string; versionLabel?: string; description?: string; photo?: File | null }) => {
+  const form = new FormData()
+  if (data.name !== undefined) form.append('name', data.name)
+  if (data.versionLabel !== undefined) form.append('versionLabel', data.versionLabel)
+  if (data.description !== undefined) form.append('description', data.description)
+  if (data.photo) form.append('photo', data.photo)
+  return requestMultipart<WorkOrderTemplate>(`/work-orders/templates/${id}`, form, 'PUT')
+}
+export const deleteWorkOrderTemplate = (id: string) =>
+  request<{ message: string }>(`/work-orders/templates/${id}`, { method: 'DELETE' })
+export const searchWorkOrderAssignees = (q = '') =>
+  request<WorkOrderAssignees>(`/work-orders/assignees${q ? `?q=${encodeURIComponent(q)}` : ''}`)
+export const getWorkOrderTickets = (status?: WorkOrderStatus | '') =>
+  request<WorkOrderTicket[]>(`/work-orders/tickets${status ? `?status=${status}` : ''}`)
+export const createWorkOrderTicket = (data: {
+  templateId: string; title: string; issueDescription: string
+  assigneeStudentId?: string; assigneeTeacherId?: string
+}) => request<WorkOrderTicket>('/work-orders/tickets', { method: 'POST', body: JSON.stringify(data) })
+export const getWorkOrderTicket = (id: string) => request<WorkOrderTicket>(`/work-orders/tickets/${id}`)
+export const updateWorkOrderTicket = (id: string, data: Partial<{
+  title: string; issueDescription: string; workPerformed: string; status: WorkOrderStatus
+  assigneeStudentId: string | null; assigneeTeacherId: string | null
+}>) => request<WorkOrderTicket>(`/work-orders/tickets/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+export const cancelWorkOrderTicket = (id: string) =>
+  request<WorkOrderTicket>(`/work-orders/tickets/${id}`, { method: 'DELETE' })
+export const addWorkOrderMessage = (ticketId: string, body: string) =>
+  request<WorkOrderMessage>(`/work-orders/tickets/${ticketId}/messages`, { method: 'POST', body: JSON.stringify({ body }) })
+export const getWorkOrderNotifications = (unreadOnly = false) =>
+  request<WorkOrderNotification[]>(`/work-orders/notifications${unreadOnly ? '?unreadOnly=true' : ''}`)
+export const markWorkOrderNotificationRead = (id: string) =>
+  request<WorkOrderNotification>(`/work-orders/notifications/${id}/read`, { method: 'POST' })
+export const getStudentWorkOrderTickets = (studentId: string) =>
+  request<StudentWorkOrderTicket[]>(`/work-orders/student/${encodeURIComponent(studentId)}/tickets`)
+export const updateStudentWorkPerformed = (studentId: string, ticketId: string, workPerformed: string) =>
+  request<StudentWorkOrderTicket>(`/work-orders/student/${encodeURIComponent(studentId)}/tickets/${ticketId}/work-performed`, {
+    method: 'PATCH', body: JSON.stringify({ workPerformed }),
+  })
+export const submitStudentWorkOrderCompleted = (studentId: string, ticketId: string, workPerformed?: string) =>
+  request<StudentWorkOrderTicket>(`/work-orders/student/${encodeURIComponent(studentId)}/tickets/${ticketId}/submit-completed`, {
+    method: 'POST', body: JSON.stringify({ workPerformed }),
+  })
+
+// ---------------------------------------------------------------------------
 // Grades
 // ---------------------------------------------------------------------------
 export type GradeType = 'quiz' | 'project'

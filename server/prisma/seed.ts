@@ -1,4 +1,14 @@
 import { PrismaClient, Shift, Track } from '@prisma/client'
+import {
+  STUDENT_POP_EMAIL_NOTIFICATION_TTL_HOURS,
+  STUDENT_POP_MAILBOX_ADDRESS,
+  STUDENT_POP_NOTIFICATION_TEXT,
+  STUDENT_POP_SUBJECT_TOKEN,
+} from '../src/services/notificationService'
+import {
+  DEFAULT_WORK_ORDER_TEMPLATE,
+  persistWorkOrderTemplateFile,
+} from '../src/services/workOrderService'
 
 const prisma = new PrismaClient()
 
@@ -45,6 +55,57 @@ async function main() {
     })
   }
   console.log(`Seeded ${curriculumRows.length} curriculum rows.`)
+
+  console.log('Seeding reports mailbox notification source...')
+  await prisma.emailSyncSource.upsert({
+    where: { mailboxAddress: STUDENT_POP_MAILBOX_ADDRESS },
+    update: {
+      enabled: true,
+      subjectContains: STUDENT_POP_SUBJECT_TOKEN,
+      notificationTitle: STUDENT_POP_NOTIFICATION_TEXT,
+      notificationBody: STUDENT_POP_NOTIFICATION_TEXT,
+      notificationTtlHours: STUDENT_POP_EMAIL_NOTIFICATION_TTL_HOURS,
+    },
+    create: {
+      name: 'Reports mailbox student pop watcher',
+      mailboxAddress: STUDENT_POP_MAILBOX_ADDRESS,
+      subjectContains: STUDENT_POP_SUBJECT_TOKEN,
+      notificationTitle: STUDENT_POP_NOTIFICATION_TEXT,
+      notificationBody: STUDENT_POP_NOTIFICATION_TEXT,
+      notificationTtlHours: STUDENT_POP_EMAIL_NOTIFICATION_TTL_HOURS,
+    },
+  })
+  console.log('Seeded reports mailbox notification source.')
+
+  console.log('Seeding default work-order template...')
+  const existingWorkOrderTemplate = await prisma.workOrderTemplate.findFirst({
+    where: {
+      name: DEFAULT_WORK_ORDER_TEMPLATE.name,
+      versionLabel: DEFAULT_WORK_ORDER_TEMPLATE.versionLabel,
+    },
+  })
+  if (existingWorkOrderTemplate) {
+    console.log('Default work-order template already exists.')
+  } else {
+    const stored = await persistWorkOrderTemplateFile({
+      sourcePath: DEFAULT_WORK_ORDER_TEMPLATE.sourcePath,
+      originalFilename: DEFAULT_WORK_ORDER_TEMPLATE.originalFilename,
+      mimeType: DEFAULT_WORK_ORDER_TEMPLATE.mimeType,
+    })
+    await prisma.workOrderTemplate.create({
+      data: {
+        name: DEFAULT_WORK_ORDER_TEMPLATE.name,
+        versionLabel: DEFAULT_WORK_ORDER_TEMPLATE.versionLabel,
+        description: DEFAULT_WORK_ORDER_TEMPLATE.description,
+        photoPath: stored.storedPath,
+        photoUrl: stored.url,
+        photoMimeType: stored.mimeType,
+        photoSizeBytes: stored.sizeBytes,
+        originalFilename: stored.originalFilename,
+      },
+    })
+    console.log('Seeded default work-order template.')
+  }
 }
 
 main()

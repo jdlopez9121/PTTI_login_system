@@ -9,6 +9,8 @@ import LoginStudentModal from '../components/LoginStudentModal'
 import CsvImportButton from '../components/CsvImportButton'
 import AddTeacherModal from '../components/AddTeacherModal'
 import GradeDashboard from '../components/GradeDashboard'
+import WorkOrderDashboard from '../components/WorkOrderDashboard'
+import ActiveNotificationsPanel from '../components/ActiveNotificationsPanel'
 
 const SHIFTS = ['morning', 'afternoon', 'evening', 'night']
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
@@ -26,6 +28,7 @@ export default function TeacherDashboard() {
   const [showLoginStudent, setShowLoginStudent] = useState(false)
   const [showAddTeacher, setShowAddTeacher] = useState(false)
   const [showGrades, setShowGrades] = useState(false)
+  const [showWorkOrders, setShowWorkOrders] = useState(false)
 
   const room = getRoomCookie() ?? 'Unknown Room'
 
@@ -80,11 +83,17 @@ export default function TeacherDashboard() {
             Grades
           </button>
           <button className="btn btn-secondary" style={{ background: 'rgba(255,255,255,0.15)', color: '#fff' }}
+            onClick={() => setShowWorkOrders(true)}>
+            Work Orders
+          </button>
+          <button className="btn btn-secondary" style={{ background: 'rgba(255,255,255,0.15)', color: '#fff' }}
             onClick={handleLogout}>
             Log Out
           </button>
         </div>
       </nav>
+
+      {data && <ActiveNotificationsPanel teacher={data.teacher} currentShift={data.currentShift} roomName={room} />}
 
       <div className="split-layout">
         {/* Present Students */}
@@ -273,6 +282,10 @@ export default function TeacherDashboard() {
           teacherShift={data.teacher.shift}
           onClose={() => setShowGrades(false)}
         />
+      )}
+
+      {showWorkOrders && (
+        <WorkOrderDashboard onClose={() => setShowWorkOrders(false)} />
       )}
 
     </div>

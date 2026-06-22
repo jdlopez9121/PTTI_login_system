@@ -25,35 +25,91 @@ enum GradeType {
   project
 }
 
+enum NotificationAudience {
+  all
+  subject
+  shift
+  room
+}
+
+enum NotificationPriority {
+  normal
+  important
+  urgent
+}
+
+enum NotificationSource {
+  manual
+  calendar
+  email
+}
+
+enum EmailProvider {
+  microsoft365
+}
+
+enum CalendarProvider {
+  microsoft365
+}
+
+enum WorkOrderStatus {
+  open
+  assigned
+  in_progress
+  submitted_completed
+  completed
+  cancelled
+}
+
+enum WorkOrderAssigneeType {
+  teacher
+  student
+}
+
+enum WorkOrderMessageVisibility {
+  teacher_only
+}
+
+enum WorkOrderNotificationType {
+  submitted_completed
+  status_changed
+}
+
 model Student {
-  id               String          @id @default(uuid())
-  studentId        String          @unique @map("student_id")
-  fullName         String          @map("full_name")
-  cohortStartMonth Int             @map("cohort_start_month")
+  id               String            @id @default(uuid())
+  studentId        String            @unique @map("student_id")
+  fullName         String            @map("full_name")
+  cohortStartMonth Int               @map("cohort_start_month")
   track            Track
-  isFloating       Boolean         @default(false) @map("is_floating")
-  isActive         Boolean         @default(true) @map("is_active")
-  createdAt        DateTime        @default(now()) @map("created_at")
+  isFloating       Boolean           @default(false) @map("is_floating")
+  isActive         Boolean           @default(true) @map("is_active")
+  createdAt        DateTime          @default(now()) @map("created_at")
   attendanceLogs   AttendanceLog[]
   gradeEntries     GradeEntry[]
+  workOrderTickets  WorkOrderTicket[] @relation("StudentWorkOrderTickets")
 
   @@map("students")
 }
 
 model Teacher {
-  id              String       @id @default(uuid())
-  name            String
-  email           String       @unique
-  passwordHash    String       @map("password_hash")
-  subject1        String       @map("subject_1")
-  subject2        String?      @map("subject_2")
-  subject3        String?      @map("subject_3")
-  shift           Shift
-  emailVerified   Boolean      @default(false) @map("email_verified")
-  verifyToken     String?      @map("verify_token")
-  createdAt       DateTime     @default(now()) @map("created_at")
-  rooms           Room[]
-  verifiedEntries GradeEntry[]
+  id                       String                  @id @default(uuid())
+  name                     String
+  email                    String                  @unique
+  passwordHash             String                  @map("password_hash")
+  subject1                 String                  @map("subject_1")
+  subject2                 String?                 @map("subject_2")
+  subject3                 String?                 @map("subject_3")
+  shift                    Shift
+  emailVerified            Boolean                 @default(false) @map("email_verified")
+  verifyToken              String?                 @map("verify_token")
+  createdAt                DateTime                @default(now()) @map("created_at")
+  rooms                    Room[]
+  verifiedEntries          GradeEntry[]
+  createdNotifications     Notification[]
+  createdWorkOrderTickets  WorkOrderTicket[]       @relation("WorkOrderTicketCreator")
+  assignedWorkOrderTickets WorkOrderTicket[]       @relation("TeacherWorkOrderTickets")
+  workOrderMessages        WorkOrderMessage[]
+  workOrderNotifications   WorkOrderNotification[]
 
   @@map("teachers")
 }
@@ -69,14 +125,14 @@ model Room {
 }
 
 model AttendanceLog {
-  id           String   @id @default(uuid())
-  studentId    String   @map("student_id")
-  student      Student  @relation(fields: [studentId], references: [id])
-  loginTime    DateTime @map("login_time") @db.Timestamptz
-  date         DateTime @map("date") @db.Date
-  shift        Shift
-  roomName     String   @map("room_name")
-  hoursCredit  Decimal  @map("hours_credited") @db.Decimal(4, 1)
+  id          String   @id @default(uuid())
+  studentId   String   @map("student_id")
+  student     Student  @relation(fields: [studentId], references: [id])
+  loginTime   DateTime @map("login_time") @db.Timestamptz
+  date        DateTime @map("date") @db.Date
+  shift       Shift
+  roomName    String   @map("room_name")
+  hoursCredit Decimal  @map("hours_credited") @db.Decimal(4, 1)
 
   @@map("attendance_logs")
 }
@@ -126,4 +182,156 @@ model GradeEntry {
 
   @@unique([templateId, studentId, cohortMonth, cohortYear])
   @@map("grade_entries")
+}
+
+model Notification {
+  id               String               @id @default(uuid())
+  title            String
+  body             String
+  audience         NotificationAudience @default(all)
+  subject          String?
+  shift            Shift?
+  roomName         String?              @map("room_name")
+  priority         NotificationPriority @default(normal)
+  source           NotificationSource   @default(manual)
+  sourceExternalId String?              @map("source_external_id")
+  sourceCalendarId String?              @map("source_calendar_id")
+  sourceStartAt    DateTime?            @map("source_start_at") @db.Timestamptz
+  sourceEndAt      DateTime?            @map("source_end_at") @db.Timestamptz
+  startsAt         DateTime             @default(now()) @map("starts_at") @db.Timestamptz
+  expiresAt        DateTime             @map("expires_at") @db.Timestamptz
+  createdById      String?              @map("created_by_id")
+  createdBy        Teacher?             @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  archivedAt       DateTime?            @map("archived_at") @db.Timestamptz
+  createdAt        DateTime             @default(now()) @map("created_at")
+  updatedAt        DateTime             @updatedAt @map("updated_at")
+
+  @@unique([source, sourceCalendarId, sourceExternalId])
+  @@index([expiresAt])
+  @@index([startsAt, expiresAt])
+  @@index([audience, subject, shift, roomName])
+  @@map("notifications")
+}
+
+model CalendarSyncSource {
+  id            String           @id @default(uuid())
+  provider      CalendarProvider @default(microsoft365)
+  name          String
+  calendarEmail String?          @map("calendar_email")
+  calendarId    String?          @map("calendar_id")
+  enabled       Boolean          @default(true)
+  lastSyncedAt  DateTime?        @map("last_synced_at") @db.Timestamptz
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+
+  @@map("calendar_sync_sources")
+}
+
+model EmailSyncSource {
+  id                         String        @id @default(uuid())
+  provider                   EmailProvider @default(microsoft365)
+  name                       String
+  mailboxAddress             String        @unique @map("mailbox_address")
+  enabled                    Boolean       @default(true)
+  subjectContains            String        @default("student pop") @map("subject_contains")
+  notificationTitle          String        @default("Concerns list ready") @map("notification_title")
+  notificationBody           String        @default("Concerns list ready") @map("notification_body")
+  notificationTtlHours       Int           @default(12) @map("notification_ttl_hours")
+  oauthAccessTokenEncrypted  String?       @map("oauth_access_token_encrypted") @db.Text
+  oauthRefreshTokenEncrypted String?       @map("oauth_refresh_token_encrypted") @db.Text
+  oauthTokenExpiresAt        DateTime?     @map("oauth_token_expires_at") @db.Timestamptz
+  lastSyncedAt               DateTime?     @map("last_synced_at") @db.Timestamptz
+  createdAt                  DateTime      @default(now()) @map("created_at")
+  updatedAt                  DateTime      @updatedAt @map("updated_at")
+
+  @@index([enabled, mailboxAddress])
+  @@map("email_sync_sources")
+}
+
+model WorkOrderTemplate {
+  id               String            @id @default(uuid())
+  name             String
+  versionLabel     String            @default("Version 1") @map("version_label")
+  description      String?
+  photoPath        String            @map("photo_path")
+  photoUrl         String            @map("photo_url")
+  photoMimeType    String            @map("photo_mime_type")
+  photoSizeBytes   Int               @map("photo_size_bytes")
+  originalFilename String            @map("original_filename")
+  isActive         Boolean           @default(true) @map("is_active")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+  tickets          WorkOrderTicket[]
+
+  @@unique([name, versionLabel])
+  @@map("work_order_templates")
+}
+
+model WorkOrderTicket {
+  id                               String                  @id @default(uuid())
+  templateId                       String                  @map("template_id")
+  template                         WorkOrderTemplate       @relation(fields: [templateId], references: [id])
+  templateNameSnapshot             String                  @map("template_name_snapshot")
+  templateVersionSnapshot          String                  @map("template_version_snapshot")
+  templateDescriptionSnapshot      String?                 @map("template_description_snapshot")
+  templatePhotoPathSnapshot        String                  @map("template_photo_path_snapshot")
+  templatePhotoUrlSnapshot         String                  @map("template_photo_url_snapshot")
+  templatePhotoMimeTypeSnapshot    String                  @map("template_photo_mime_type_snapshot")
+  templatePhotoSizeBytesSnapshot   Int                     @map("template_photo_size_bytes_snapshot")
+  templateOriginalFilenameSnapshot String                  @map("template_original_filename_snapshot")
+  title                            String
+  issueDescription                 String                  @map("issue_description")
+  workPerformed                    String?                 @map("work_performed")
+  status                           WorkOrderStatus         @default(open)
+  assigneeType                     WorkOrderAssigneeType   @map("assignee_type")
+  assigneeStudentId                String?                 @map("assignee_student_id")
+  assigneeStudent                  Student?                @relation("StudentWorkOrderTickets", fields: [assigneeStudentId], references: [id], onDelete: SetNull)
+  assigneeTeacherId                String?                 @map("assignee_teacher_id")
+  assigneeTeacher                  Teacher?                @relation("TeacherWorkOrderTickets", fields: [assigneeTeacherId], references: [id], onDelete: SetNull)
+  createdById                      String                  @map("created_by_id")
+  createdBy                        Teacher                 @relation("WorkOrderTicketCreator", fields: [createdById], references: [id])
+  assignedAt                       DateTime?               @map("assigned_at")
+  submittedCompletedAt             DateTime?               @map("submitted_completed_at")
+  completedAt                      DateTime?               @map("completed_at")
+  createdAt                        DateTime                @default(now()) @map("created_at")
+  updatedAt                        DateTime                @updatedAt @map("updated_at")
+  messages                         WorkOrderMessage[]
+  notifications                    WorkOrderNotification[]
+
+  @@index([status])
+  @@index([assigneeType, assigneeStudentId])
+  @@index([assigneeType, assigneeTeacherId])
+  @@index([createdAt])
+  @@map("work_order_tickets")
+}
+
+model WorkOrderMessage {
+  id         String                     @id @default(uuid())
+  ticketId   String                     @map("ticket_id")
+  ticket     WorkOrderTicket            @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  teacherId  String?                    @map("teacher_id")
+  teacher    Teacher?                   @relation(fields: [teacherId], references: [id], onDelete: SetNull)
+  body       String
+  visibility WorkOrderMessageVisibility @default(teacher_only)
+  createdAt  DateTime                   @default(now()) @map("created_at")
+
+  @@index([ticketId, createdAt])
+  @@index([teacherId])
+  @@map("work_order_messages")
+}
+
+model WorkOrderNotification {
+  id        String                    @id @default(uuid())
+  ticketId  String                    @map("ticket_id")
+  ticket    WorkOrderTicket           @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  teacherId String?                   @map("teacher_id")
+  teacher   Teacher?                  @relation(fields: [teacherId], references: [id], onDelete: SetNull)
+  type      WorkOrderNotificationType
+  message   String
+  readAt    DateTime?                 @map("read_at")
+  createdAt DateTime                  @default(now()) @map("created_at")
+
+  @@index([teacherId, readAt, createdAt])
+  @@index([ticketId])
+  @@map("work_order_notifications")
 }

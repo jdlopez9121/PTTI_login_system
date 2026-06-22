@@ -12,9 +12,15 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
     "add:teacher": "tsx src/scripts/createTeacher.ts",
-    "test:quiz-import": "tsx tests/quizGradeImportService.test.ts"
+    "calendar:login": "tsx src/scripts/microsoftCalendarLogin.ts",
+    "calendar:sync:once": "tsx src/scripts/syncMicrosoftCalendarOnce.ts",
+    "test:quiz-import": "tsx tests/quizGradeImportService.test.ts",
+    "test:work-orders": "tsx tests/workOrderService.test.ts",
+    "test:notifications": "tsx tests/notificationService.test.ts",
+    "test:microsoft-calendar": "tsx tests/microsoftCalendarService.test.ts"
   },
   "dependencies": {
+    "@azure/msal-node": "^5.2.5",
     "@prisma/client": "^5.14.0",
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.6",

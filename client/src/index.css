@@ -69,6 +69,7 @@ tbody tr:hover { background: var(--gray-50); }
 .badge-blue { background: #dbeafe; color: #1e40af; }
 .badge-green { background: #d1fae5; color: #065f46; }
 .badge-gray { background: var(--gray-200); color: var(--gray-700); }
+.badge-red { background: #fee2e2; color: #991b1b; }
 
 .alert { padding: 0.75rem 1rem; border-radius: 6px; font-size: 0.875rem; margin-top: 0.75rem; }
 .alert-success { background: #d1fae5; color: #065f46; }
@@ -107,7 +108,8 @@ tbody tr:hover { background: var(--gray-50); }
   grid-template-columns: 1fr auto 1fr;
   gap: 1rem;
   padding: 1rem;
-  height: calc(100vh - 56px);
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
 }
 .split-panel { display: flex; flex-direction: column; overflow: hidden; }
@@ -119,3 +121,75 @@ tbody tr:hover { background: var(--gray-50); }
   justify-content: flex-start; padding-top: 2.5rem; min-width: 140px;
 }
 .action-col .btn { width: 100%; justify-content: center; }
+
+.notifications-panel {
+  background: #fff;
+  border-bottom: 1px solid var(--gray-200);
+  padding: 0.9rem 1rem;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+.notifications-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+.notifications-header p,
+.notifications-empty {
+  color: var(--gray-600);
+  font-size: 0.85rem;
+  margin-top: 0.25rem;
+}
+.notifications-actions,
+.notification-badges,
+.notification-footer {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.notifications-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.notification-card {
+  border: 1px solid var(--gray-200);
+  border-left: 4px solid var(--gray-300);
+  border-radius: 8px;
+  padding: 0.8rem;
+  background: #fff;
+}
+.notification-card.notification-important { border-left-color: var(--blue); }
+.notification-card.notification-urgent { border-left-color: var(--red); }
+.notification-card-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+.notification-card h3 { margin-top: 0.45rem; }
+.notification-card p {
+  color: var(--gray-700);
+  font-size: 0.88rem;
+  margin-top: 0.55rem;
+  white-space: pre-wrap;
+}
+.notification-time {
+  text-align: right;
+  color: var(--gray-600);
+  font-size: 0.75rem;
+  min-width: 7rem;
+}
+.notification-time strong,
+.notification-time span { display: block; }
+.notification-time strong { color: var(--gray-800); }
+.notification-footer {
+  justify-content: space-between;
+  margin-top: 0.75rem;
+  color: var(--gray-500);
+  font-size: 0.78rem;
+}
