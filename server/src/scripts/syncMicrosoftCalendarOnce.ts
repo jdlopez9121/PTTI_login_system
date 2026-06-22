@@ -1,3 +1,4 @@
+import 'dotenv/config'
 import { getMicrosoftCalendarConfig, describeMicrosoftCalendarConfigIssue } from '../config/microsoftCalendarConfig'
 import prisma from '../lib/prisma'
 import { syncMicrosoftCalendar } from '../services/microsoftCalendarService'

@@ -1,3 +1,4 @@
+import 'dotenv/config'
 import { getMicrosoftCalendarConfig } from '../config/microsoftCalendarConfig'
 import { loginWithDeviceCode } from '../services/microsoftGraphAuth'
 
