@@ -69,6 +69,15 @@ interface GradeEntryUpsertArgs {
   create: { templateId: string; studentId: string; cohortMonth: number; cohortYear: number; score: number; submittedAt: Date; submittedBy: string }
 }
 
+export interface QuizGradeImportTxClient {
+  gradeTemplate: {
+    upsert(args: GradeTemplateUpsertArgs): Promise<{ id: string; name: string }>
+  }
+  gradeEntry: {
+    upsert(args: GradeEntryUpsertArgs): Promise<unknown>
+  }
+}
+
 export interface QuizGradeImportPrisma {
   student: {
     findMany(args?: unknown): Promise<ImportStudent[]>
@@ -79,7 +88,7 @@ export interface QuizGradeImportPrisma {
   gradeEntry: {
     upsert(args: GradeEntryUpsertArgs): Promise<unknown>
   }
-  $transaction<T>(items: Promise<T>[]): Promise<T[]>
+  $transaction<T>(fn: (tx: QuizGradeImportTxClient) => Promise<T>): Promise<T>
 }
 
 const REQUIRED_HEADERS = ['First Name', 'Last Name', 'Assignments', 'Points', 'Max Points']
@@ -244,45 +253,54 @@ export async function applyQuizGradeImport(params: {
 }): Promise<QuizGradeApplyResult> {
   const students = await params.prisma.student.findMany({ where: { isActive: true }, select: { id: true, studentId: true, fullName: true, cohortStartMonth: true } })
   const preview = previewQuizGradeImport(params.rows, buildStudentNameIndex(students))
+
+  if (preview.importable.length === 0) {
+    return { imported: 0, createdOrUpdatedTemplates: [], skipped: preview.skipped, errors: [] }
+  }
+
   const now = new Date()
   const assignmentNames = Array.from(new Set(preview.importable.map((row) => row.assignmentName)))
-  const templateByName = new Map<string, { id: string; name: string }>()
 
-  const templates = await params.prisma.$transaction(
-    assignmentNames.map((assignmentName, order) => params.prisma.gradeTemplate.upsert({
-      where: { subject_name: { subject: params.subject, name: assignmentName } },
-      update: { isActive: true, type: 'quiz' },
-      create: { subject: params.subject, name: assignmentName, type: 'quiz', order },
-    }))
-  )
-  for (const template of templates) templateByName.set(template.name, template)
+  await params.prisma.$transaction(async (tx) => {
+    const templates = await Promise.all(
+      assignmentNames.map((assignmentName, order) =>
+        tx.gradeTemplate.upsert({
+          where: { subject_name: { subject: params.subject, name: assignmentName } },
+          update: { isActive: true, type: 'quiz' },
+          create: { subject: params.subject, name: assignmentName, type: 'quiz', order },
+        })
+      )
+    )
 
-  await params.prisma.$transaction(
-    preview.importable.map((row) => {
-      const template = templateByName.get(row.assignmentName)
-      if (!template) throw new Error(`Template was not created for ${row.assignmentName}`)
-      return params.prisma.gradeEntry.upsert({
-        where: {
-          templateId_studentId_cohortMonth_cohortYear: {
+    const templateByName = new Map(templates.map((t) => [t.name, t]))
+
+    await Promise.all(
+      preview.importable.map((row) => {
+        const template = templateByName.get(row.assignmentName)
+        if (!template) throw new Error(`Template was not created for ${row.assignmentName}`)
+        return tx.gradeEntry.upsert({
+          where: {
+            templateId_studentId_cohortMonth_cohortYear: {
+              templateId: template.id,
+              studentId: row.studentDbId,
+              cohortMonth: params.cohortMonth,
+              cohortYear: params.cohortYear,
+            },
+          },
+          update: { score: row.score, submittedAt: now, submittedBy: params.teacherId },
+          create: {
             templateId: template.id,
             studentId: row.studentDbId,
             cohortMonth: params.cohortMonth,
             cohortYear: params.cohortYear,
+            score: row.score,
+            submittedAt: now,
+            submittedBy: params.teacherId,
           },
-        },
-        update: { score: row.score, submittedAt: now, submittedBy: params.teacherId },
-        create: {
-          templateId: template.id,
-          studentId: row.studentDbId,
-          cohortMonth: params.cohortMonth,
-          cohortYear: params.cohortYear,
-          score: row.score,
-          submittedAt: now,
-          submittedBy: params.teacherId,
-        },
+        })
       })
-    })
-  )
+    )
+  })
 
   return {
     imported: preview.importable.length,

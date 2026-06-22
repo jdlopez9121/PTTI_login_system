@@ -2,12 +2,37 @@ import { Router, Request, Response, NextFunction } from 'express'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
 import crypto from 'crypto'
+import rateLimit from 'express-rate-limit'
 import { Shift } from '@prisma/client'
 import prisma from '../lib/prisma'
 import { sendVerificationEmail } from '../services/emailService'
 import { requireAuth } from '../middleware/requireAuth'
 
 const router = Router()
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Too many login attempts, please try again later' },
+})
+
+const signupLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'Too many signup attempts, please try again later' },
+})
+
+function validatePassword(password: string): string | null {
+  if (password.length < 8) return 'Password must be at least 8 characters'
+  if (!/[A-Z]/.test(password)) return 'Password must contain an uppercase letter'
+  if (!/[a-z]/.test(password)) return 'Password must contain a lowercase letter'
+  if (!/[0-9]/.test(password)) return 'Password must contain a number'
+  return null
+}
 
 const VALID_SUBJECTS = [
   'PLC 1', 'PLC 2', 'PLC 3',
@@ -19,7 +44,7 @@ const VALID_SUBJECTS = [
 const VALID_SHIFTS: Shift[] = ['morning', 'afternoon', 'evening', 'night']
 
 // POST /api/auth/signup
-router.post('/signup', async (req: Request, res: Response, next: NextFunction) => {
+router.post('/signup', signupLimiter, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { name, email, password, subject1, subject2, shift } = req.body as {
       name: string
@@ -32,6 +57,11 @@ router.post('/signup', async (req: Request, res: Response, next: NextFunction) =
 
     if (!name || !email || !password || !subject1 || !shift) {
       res.status(400).json({ success: false, error: 'Missing required fields' })
+      return
+    }
+    const passwordError = validatePassword(password)
+    if (passwordError) {
+      res.status(400).json({ success: false, error: passwordError })
       return
     }
     if (!VALID_SUBJECTS.includes(subject1)) {
@@ -57,9 +87,10 @@ router.post('/signup', async (req: Request, res: Response, next: NextFunction) =
 
     const passwordHash = await bcrypt.hash(password, 12)
     const verifyToken = crypto.randomBytes(32).toString('hex')
+    const verifyTokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000)
 
     const teacher = await prisma.teacher.create({
-      data: { name, email, passwordHash, subject1, subject2, shift, verifyToken },
+      data: { name, email, passwordHash, subject1, subject2, shift, verifyToken, verifyTokenExpiresAt },
     })
 
     await sendVerificationEmail(email, verifyToken)
@@ -77,14 +108,14 @@ router.get('/verify/:token', async (req: Request, res: Response, next: NextFunct
     const { token } = req.params
     const teacher = await prisma.teacher.findFirst({ where: { verifyToken: token } })
 
-    if (!teacher) {
+    if (!teacher || !teacher.verifyTokenExpiresAt || teacher.verifyTokenExpiresAt < new Date()) {
       res.status(400).json({ success: false, error: 'Invalid or expired verification link' })
       return
     }
 
     await prisma.teacher.update({
       where: { id: teacher.id },
-      data: { emailVerified: true, verifyToken: null },
+      data: { emailVerified: true, verifyToken: null, verifyTokenExpiresAt: null },
     })
 
     res.json({ success: true, data: { message: 'Email verified. You can now log in.' } })
@@ -147,7 +178,7 @@ router.post('/add-teacher', requireAuth, async (req: Request, res: Response, nex
 })
 
 // POST /api/auth/login
-router.post('/login', async (req: Request, res: Response, next: NextFunction) => {
+router.post('/login', loginLimiter, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { email, password } = req.body as { email: string; password: string }
 

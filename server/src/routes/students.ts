@@ -8,6 +8,7 @@ import { requireAuth } from '../middleware/requireAuth'
 
 const router = Router()
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } })
+const STATIC_ROOMS = ['PLC Room', 'AC Room', 'DC Room', 'MT/HT Room']
 
 // POST /api/student/login — kiosk login, no auth required
 router.post('/login', async (req: Request, res: Response, next: NextFunction) => {
@@ -36,8 +37,12 @@ router.post('/login', async (req: Request, res: Response, next: NextFunction) =>
       return
     }
 
-    const hour  = clientHour   !== undefined ? clientHour   : new Date().getHours()
-    const minute = clientMinute !== undefined ? clientMinute : new Date().getMinutes()
+    const hour = typeof clientHour === 'number' && Number.isInteger(clientHour) && clientHour >= 0 && clientHour <= 23
+      ? clientHour
+      : new Date().getHours()
+    const minute = typeof clientMinute === 'number' && Number.isInteger(clientMinute) && clientMinute >= 0 && clientMinute <= 59
+      ? clientMinute
+      : new Date().getMinutes()
 
     const validation = validateLoginTime(hour, minute)
     const shift = validation.shift
@@ -72,19 +77,22 @@ router.post('/login', async (req: Request, res: Response, next: NextFunction) =>
 router.get('/present', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const room = String(req.query.room ?? '').trim()
-    const STATIC_ROOMS = ['PLC Room', 'AC Room', 'DC Room', 'MT/HT Room']
 
     if (!room || !STATIC_ROOMS.includes(room)) {
       res.status(400).json({ success: false, error: 'Valid room parameter required' })
       return
     }
 
-    const clientHour   = req.query.clientHour   !== undefined ? parseInt(String(req.query.clientHour))   : undefined
-    const clientMinute = req.query.clientMinute !== undefined ? parseInt(String(req.query.clientMinute)) : undefined
+    const clientHour = req.query.clientHour !== undefined ? Number(req.query.clientHour) : undefined
+    const clientMinute = req.query.clientMinute !== undefined ? Number(req.query.clientMinute) : undefined
 
     const now = new Date()
-    if (clientHour   !== undefined) now.setHours(clientHour)
-    if (clientMinute !== undefined) now.setMinutes(clientMinute)
+    if (typeof clientHour === 'number' && Number.isInteger(clientHour) && clientHour >= 0 && clientHour <= 23) {
+      now.setHours(clientHour)
+    }
+    if (typeof clientMinute === 'number' && Number.isInteger(clientMinute) && clientMinute >= 0 && clientMinute <= 59) {
+      now.setMinutes(clientMinute)
+    }
     const currentShift = classifyByTime(now)
 
     const startOfDay = new Date(now)
@@ -204,6 +212,10 @@ router.post('/attendance/manual', requireAuth, async (req: Request, res: Respons
 
     if (!studentDbId || !loginTime || !roomName) {
       res.status(400).json({ success: false, error: 'studentDbId, loginTime, and roomName are required' })
+      return
+    }
+    if (!STATIC_ROOMS.includes(roomName)) {
+      res.status(400).json({ success: false, error: `roomName must be one of: ${STATIC_ROOMS.join(', ')}` })
       return
     }
 

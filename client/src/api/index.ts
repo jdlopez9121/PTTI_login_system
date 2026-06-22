@@ -1,10 +1,14 @@
 const BASE = '/api'
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const headers = new Headers(options?.headers)
+  if (!(options?.body instanceof FormData)) {
+    headers.set('Content-Type', 'application/json')
+  }
   const res = await fetch(`${BASE}${path}`, {
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
     ...options,
+    headers,
   })
   const body = await res.json()
   if (!body.success) throw new Error(body.error ?? 'Request failed')

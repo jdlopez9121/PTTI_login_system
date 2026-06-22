@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { importCsv, ImportResult } from '../api'
 
 interface Props {
-  onImported: () => void
+  onImported: () => void | Promise<void>
 }
 
 export default function CsvImportButton({ onImported }: Props) {
@@ -18,7 +18,11 @@ export default function CsvImportButton({ onImported }: Props) {
     try {
       const r = await importCsv(file)
       setResult(r)
-      onImported()
+      try {
+        await onImported()
+      } catch {
+        // Import succeeded but refresh failed — stale data is acceptable
+      }
     } catch (err) {
       setResult({ added: 0, skipped: 0, errors: [err instanceof Error ? err.message : 'Import failed'] })
     } finally {

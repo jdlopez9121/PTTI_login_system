@@ -49,9 +49,10 @@ model Teacher {
   subject2        String?      @map("subject_2")
   subject3        String?      @map("subject_3")
   shift           Shift
-  emailVerified   Boolean      @default(false) @map("email_verified")
-  verifyToken     String?      @map("verify_token")
-  createdAt       DateTime     @default(now()) @map("created_at")
+  emailVerified        Boolean      @default(false) @map("email_verified")
+  verifyToken          String?      @map("verify_token")
+  verifyTokenExpiresAt DateTime?    @map("verify_token_expires_at")
+  createdAt            DateTime     @default(now()) @map("created_at")
   rooms           Room[]
   verifiedEntries GradeEntry[]
 
