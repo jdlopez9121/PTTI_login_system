@@ -113,15 +113,8 @@ export default function LoginPage() {
     }}>
       {/* Left — sign-in form */}
       <div className="card" style={{ width: 'min(440px, 100%)', textAlign: 'center', flexShrink: 0 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem', gap: '0.75rem' }}>
-          <div style={{ flex: 1 }}>
-            <h1 style={{ marginBottom: '0.25rem' }}>Attendance Log in</h1>
-            <p style={{ color: 'var(--gray-600)', fontWeight: 600, letterSpacing: '0.05em' }}>PTTI</p>
-          </div>
-          <button className="btn btn-secondary" type="button" onClick={() => navigate('/teacher/videos')}>
-            Video Dashboard
-          </button>
-        </div>
+        <h1 style={{ marginBottom: '0.25rem' }}>Attendance Log in</h1>
+        <p style={{ color: 'var(--gray-600)', marginBottom: '1.25rem', fontWeight: 600, letterSpacing: '0.05em' }}>PTTI</p>
 
         {loginMode === 'student' && (
           <div style={{

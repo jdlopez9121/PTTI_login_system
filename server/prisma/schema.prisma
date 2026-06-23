@@ -41,21 +41,19 @@ model Student {
 }
 
 model Teacher {
-  id                String      @id @default(uuid())
-  name              String
-  email             String      @unique
-  passwordHash      String      @map("password_hash")
-  subject1          String      @map("subject_1")
-  subject2          String?     @map("subject_2")
-  subject3          String?     @map("subject_3")
-  shift             Shift
-  emailVerified     Boolean     @default(false) @map("email_verified")
-  verifyToken       String?     @map("verify_token")
-  createdAt         DateTime    @default(now()) @map("created_at")
-  rooms             Room[]
-  verifiedEntries   GradeEntry[]
-  createdVideoLinks VideoLink[] @relation("VideoLinkCreatedBy")
-  updatedVideoLinks VideoLink[] @relation("VideoLinkUpdatedBy")
+  id              String       @id @default(uuid())
+  name            String
+  email           String       @unique
+  passwordHash    String       @map("password_hash")
+  subject1        String       @map("subject_1")
+  subject2        String?      @map("subject_2")
+  subject3        String?      @map("subject_3")
+  shift           Shift
+  emailVerified   Boolean      @default(false) @map("email_verified")
+  verifyToken     String?      @map("verify_token")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  rooms           Room[]
+  verifiedEntries GradeEntry[]
 
   @@map("teachers")
 }
@@ -68,25 +66,6 @@ model Room {
   createdAt DateTime @default(now()) @map("created_at")
 
   @@map("rooms")
-}
-
-// Teacher-managed fourth dashboard: ordered list of embedded videos.
-model VideoLink {
-  id               String   @id @default(uuid())
-  title            String
-  videoUrl         String   @map("video_url")
-  embedUrl         String   @map("embed_url")
-  displayOrder     Int      @default(0) @map("display_order")
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
-  createdBy        String   @map("created_by")
-  updatedBy        String?  @map("updated_by")
-  createdByTeacher Teacher  @relation("VideoLinkCreatedBy", fields: [createdBy], references: [id])
-  updatedByTeacher Teacher? @relation("VideoLinkUpdatedBy", fields: [updatedBy], references: [id])
-
-  @@index([displayOrder])
-  @@index([createdBy])
-  @@map("video_links")
 }
 
 model AttendanceLog {

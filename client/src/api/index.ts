@@ -17,7 +17,7 @@ export type Teacher = {
   subject1: string; subject2: string | null; subject3: string | null; shift: string
 }
 export type StudentResult = {
-  logId?: string; studentId: string; fullName: string; cohortStartMonth: number; loginTime?: string; room?: string; shift?: string
+  logId?: string; studentId: string; fullName: string; cohortStartMonth: number; loginTime?: string; room?: string
 }
 export type DashboardData = {
   teacher: Teacher
@@ -32,17 +32,6 @@ export type SearchStudent = {
 }
 export type ImportResult = { added: number; skipped: number; errors: string[] }
 export type SchoolWideRow = { subject: string; programMonth: number; present: number; total: number; percentage: number }
-export type VideoLink = {
-  id: string
-  title: string
-  videoUrl: string
-  embedUrl: string
-  displayOrder: number
-  createdAt: string
-  updatedAt: string
-  createdBy: Teacher
-  updatedBy: Teacher | null
-}
 
 // Rooms
 export const getRooms = () => request<Room[]>('/rooms')
@@ -84,17 +73,6 @@ export const getDashboard = (date?: string, shift?: string) => {
   const qs = params.toString()
   return request<DashboardData>(`/teacher/dashboard${qs ? `?${qs}` : ''}`)
 }
-
-// Videos dashboard
-export const getVideos = () => request<{ videos: VideoLink[] }>('/videos')
-export const createVideo = (data: { title: string; videoUrl: string; displayOrder?: number }) =>
-  request<{ video: VideoLink }>('/videos', { method: 'POST', body: JSON.stringify(data) })
-export const updateVideo = (id: string, data: { title?: string; videoUrl?: string; displayOrder?: number }) =>
-  request<{ video: VideoLink }>(`/videos/${id}`, { method: 'PUT', body: JSON.stringify(data) })
-export const deleteVideo = (id: string) =>
-  request<{ id: string }>(`/videos/${id}`, { method: 'DELETE' })
-export const reorderVideos = (videos: { id: string; displayOrder: number }[]) =>
-  request<{ videos: VideoLink[] }>('/videos/reorder', { method: 'PUT', body: JSON.stringify({ videos }) })
 
 // Students
 export const searchStudents = (q: string) =>
