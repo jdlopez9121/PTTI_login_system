@@ -93,7 +93,10 @@ async function testAppliesImportWithTemplateUpsertAndGradeUpsert() {
         return { id: 'entry-1' }
       },
     },
-    $transaction: async (items) => Promise.all(items),
+    $transaction: async (fn) => fn({
+      gradeTemplate: prisma.gradeTemplate,
+      gradeEntry: prisma.gradeEntry,
+    }),
   }
 
   const result = await applyQuizGradeImport({
