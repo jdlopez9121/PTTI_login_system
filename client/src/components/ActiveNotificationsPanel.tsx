@@ -5,13 +5,7 @@ import {
   type Teacher,
   type TeacherNotification,
 } from '../api'
-import {
-  canArchiveNotification,
-  formatNotificationSource,
-  formatTimeRemaining,
-  notificationAudienceLabel,
-  priorityBadgeClass,
-} from '../utils/notificationUtils'
+import { canArchiveNotification } from '../utils/notificationUtils'
 import AddNotificationModal from './AddNotificationModal'
 
 type Props = {
@@ -20,19 +14,11 @@ type Props = {
   roomName: string
 }
 
-function notificationTimestamp(notification: TeacherNotification): string {
-  const sourceTime = notification.sourceStartAt ?? notification.startsAt ?? notification.createdAt
-  return new Date(sourceTime).toLocaleString([], {
-    month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-  })
-}
-
 export default function ActiveNotificationsPanel({ teacher, currentShift, roomName }: Props) {
   const [notifications, setNotifications] = useState<TeacherNotification[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [showAdd, setShowAdd] = useState(false)
-  const [now, setNow] = useState(() => new Date())
 
   const filters = useMemo(() => ({
     subject: teacher.subject1,
@@ -45,7 +31,6 @@ export default function ActiveNotificationsPanel({ teacher, currentShift, roomNa
     setError('')
     try {
       setNotifications(await getActiveNotifications(filters))
-      setNow(new Date())
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load notifications')
     } finally {
@@ -54,10 +39,6 @@ export default function ActiveNotificationsPanel({ teacher, currentShift, roomNa
   }, [filters])
 
   useEffect(() => { load() }, [load])
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(new Date()), 60000)
-    return () => window.clearInterval(timer)
-  }, [])
 
   const archive = async (notification: TeacherNotification) => {
     setError('')
@@ -72,10 +53,7 @@ export default function ActiveNotificationsPanel({ teacher, currentShift, roomNa
   return (
     <section className="notifications-panel">
       <div className="notifications-header">
-        <div>
-          <h2>Active Notifications</h2>
-          <p>Teacher and calendar notices visible for your subject, shift, room, or all teachers.</p>
-        </div>
+        <h2>Notifications</h2>
         <div className="notifications-actions">
           <button className="btn btn-secondary" onClick={load} disabled={loading}>{loading ? 'Loading…' : '↻ Refresh'}</button>
           <button className="btn btn-primary" onClick={() => setShowAdd(true)}>+ Notification</button>
@@ -94,23 +72,11 @@ export default function ActiveNotificationsPanel({ teacher, currentShift, roomNa
             const archiveAllowed = canArchiveNotification(notification, teacher.id)
             return (
               <article key={notification.id} className={`notification-card notification-${notification.priority}`}>
-                <div className="notification-card-head">
-                  <div>
-                    <div className="notification-badges">
-                      <span className="badge badge-green">{formatNotificationSource(notification.source)}</span>
-                      <span className={`badge ${priorityBadgeClass(notification.priority)}`}>{notification.priority}</span>
-                      <span className="badge badge-gray">{notificationAudienceLabel(notification)}</span>
-                    </div>
+                <div className="notification-main">
+                  <div className="notification-copy">
                     <h3>{notification.title}</h3>
+                    {notification.body && <p>{notification.body}</p>}
                   </div>
-                  <div className="notification-time">
-                    <strong>{formatTimeRemaining(notification.expiresAt, now)}</strong>
-                    <span>{notificationTimestamp(notification)}</span>
-                  </div>
-                </div>
-                <p>{notification.body}</p>
-                <div className="notification-footer">
-                  <span>{notification.source === 'calendar' ? 'Read-only calendar source' : notification.source === 'manual' ? 'Teacher-created' : 'Email source'}</span>
                   <button className="btn btn-secondary" onClick={() => archive(notification)} disabled={!archiveAllowed} title={archiveAllowed ? 'Hide this notification' : 'Only the creating teacher can hide this manual notification'}>
                     Hide
                   </button>
