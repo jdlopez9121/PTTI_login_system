@@ -1,0 +1,513 @@
+# PTTI Bug Review — Railway login hang / Prisma suspicion
+
+Date: 2026-06-11
+Repo reviewed: `jdlopez9121/PTTI_login_system`
+Local review path: `/home/jlopez/hermes-workspaces/PTTI_login_system_review`
+Requested mode: read/review only; no source-code changes.
+
+## Executive summary
+
+I reviewed the repo, branch list, recent commits, Prisma setup, Railway/deployment-related files, login flow, and recent feature/revert history.
+
+The only remote feature branch currently present is:
+
+- `origin/parts-request-dashboard`
+
+That branch differs from `origin/master` only in `.gitignore`:
+
+```text
+.gitignore | 103 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++--
+1 file changed, 100 insertions(+), 3 deletions(-)
+```
+
+So, based on the current GitHub state, the `parts-request-dashboard` branch itself does **not** contain code that would directly break login. The more relevant evidence is in recent `master` history, especially the grading feature commit and deployment/Prisma fixes around Railway.
+
+The current checked-out code builds successfully:
+
+```text
+server: npm run build --prefix server -> PASS
+client: npm run build --prefix client -> PASS
+```
+
+Most likely areas to investigate next:
+
+1. Railway deployment networking / API proxy configuration.
+2. Prisma/database startup and migrations, especially the prior `prisma migrate deploy` / `db push` behavior.
+3. Cookie/auth behavior after login when frontend and backend are on different domains.
+4. Production database schema state after the grading feature was deployed and reverted.
+5. Railway logs around `/api/auth/login`, not just the frontend symptom.
+
+## Branch and commit evidence
+
+Recent commit graph:
+
+```text
+f7855ed origin/parts-request-dashboard chore: expand .gitignore for Python/FastAPI and Next.js
+f654b73 origin/master Revert "feat: add grading module with attendance, quiz, and project grades"
+33a696b feat: add grading module with attendance, quiz, and project grades
+def44ec feat: change night shift start to 6:30 PM and filter present students by teacher subjects
+3c8c4e4 fix: revert createdBy to non-nullable, reassign rooms on teacher delete
+57640fa feat: add delete teacher option inside Add Teacher modal
+f9e81ba fix: remove prisma db push from startup — schema already in sync, was exhausting Postgres connections on crash loop
+299d10f fix: add global crash logging to surface unhandled errors in Railway logs
+c65e5cc fix: consolidate to single PrismaClient instance to prevent connection pool exhaustion
+4561927 fix: bind server to IPv6 :: for Railway private networking
+2b3f7ee chore: make nginx API upstream configurable via env var for Railway deployment
+44cc6e3 feat: initial commit — PTTI attendance system
+```
+
+Important interpretation:
+
+- There was a prior issue significant enough to create commits explicitly named:
+  - `fix: consolidate to single PrismaClient instance to prevent connection pool exhaustion`
+  - `fix: remove prisma db push from startup — schema already in sync, was exhausting Postgres connections on crash loop`
+- That strongly supports your suspicion that Prisma/database behavior was involved at some point.
+- The current `server/src/lib/prisma.ts` has a single Prisma client instance:
+
+```ts
+const prisma = new PrismaClient()
+export default prisma
+```
+
+That is better than creating many Prisma clients in every route/service.
+
+## Current deployment-related files reviewed
+
+### `server/docker-entrypoint.sh`
+
+Current version:
+
+```sh
+echo "Starting PTTI server..."
+exec node dist/index.js
+```
+
+This means the current server container no longer runs `prisma db push` or `prisma migrate deploy` on every startup.
+
+Earlier grading feature commit `33a696b` added:
+
+```sh
+echo "Running database migrations..."
+npx prisma migrate deploy
+exec node dist/index.js
+```
+
+Then it was reverted.
+
+### Current Prisma migrations state
+
+Current `server/prisma/` contains only:
+
+```text
+schema.prisma
+seed.ts
+```
+
+There is no `server/prisma/migrations/` directory currently present.
+
+This matters because `prisma migrate deploy` expects migration files. If Railway deployed a commit that runs `npx prisma migrate deploy` but the image/repo did not include a valid migrations directory, startup could fail or loop. That would make login look like it hangs because the API service is unavailable or repeatedly restarting.
+
+### `client/nginx.conf`
+
+Current client expects an API proxy target:
+
+```nginx
+location /api/ {
+    proxy_pass http://${API_UPSTREAM};
+}
+```
+
+And `client/docker-entrypoint.sh` renders it with:
+
+```sh
+envsubst '${API_UPSTREAM}' < /etc/nginx/conf.d/default.conf.template > /etc/nginx/conf.d/default.conf
+```
+
+If `API_UPSTREAM` is unset, wrong, points to the wrong Railway private hostname, or points to a server that is crash-looping, login requests to `/api/auth/login` can appear to hang or eventually fail from the user’s point of view.
+
+## Login flow reviewed
+
+### Frontend login API
+
+`client/src/api/index.ts` has:
+
+```ts
+const BASE = '/api'
+
+export const login = (email: string, password: string) =>
+  request<Teacher>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) })
+```
+
+Every frontend API call goes to same-origin `/api/...`.
+
+That works only if one of these is true:
+
+1. The frontend Nginx service correctly proxies `/api` to the backend service.
+2. The frontend and backend are deployed together under the same origin.
+3. A Railway routing/proxy layer maps `/api` to the backend.
+
+If Railway has separate frontend/backend public domains and no working same-origin `/api` proxy, the frontend login call may never reach Express.
+
+### Backend login route
+
+`server/src/routes/auth.ts` login path:
+
+```ts
+router.post('/login', async (req, res) => {
+  const teacher = await prisma.teacher.findFirst({ ... })
+  const valid = await bcrypt.compare(password, teacher.passwordHash)
+  const token = jwt.sign(...)
+  res.cookie('token', token, {
+    httpOnly: true,
+    secure: false,
+    sameSite: 'lax',
+    maxAge: 8 * 60 * 60 * 1000,
+  })
+  res.json({ success: true, data: ... })
+})
+```
+
+The route itself is straightforward. It can hang/fail mainly if:
+
+- the request never reaches the server;
+- the server is crash-looping;
+- the Prisma query cannot get a database connection;
+- the database schema/table is missing or mismatched;
+- Railway networking/env vars are wrong;
+- cookies are not persisted after a successful login, causing the next route to redirect/fail.
+
+## Highest-probability causes
+
+### 1. API proxy / Railway service networking problem
+
+Evidence:
+
+- Frontend uses hardcoded `BASE = '/api'`.
+- Nginx proxy depends on `API_UPSTREAM`.
+- Recent commit `2b3f7ee` specifically made Nginx API upstream configurable for Railway.
+- Server bind was changed to IPv6 `::` in `4561927` for Railway private networking.
+
+Why this matches “hang on login”:
+
+- The login button calls `/api/auth/login`.
+- If `/api` proxy points nowhere or points to an unhealthy backend, the browser waits until timeout or returns a gateway error.
+- To the user, that looks like the app hangs at login even if React itself is fine.
+
+What to check next:
+
+- In browser DevTools → Network tab, click login and inspect `/api/auth/login`:
+  - Is it pending forever?
+  - Is it 502/504?
+  - Is it 404 from Nginx/frontend?
+  - Is it CORS blocked?
+  - Does it return JSON from Express?
+- In Railway frontend service env, verify `API_UPSTREAM` is set correctly.
+- In Railway backend service, verify it is healthy and listening on `$PORT`.
+- Hit backend health directly if exposed:
+
+```text
+/api/health
+```
+
+Expected response:
+
+```json
+{ "status": "ok" }
+```
+
+### 2. Prisma/database connection exhaustion or unavailable database
+
+Evidence:
+
+- Commit `c65e5cc` consolidated Prisma clients to prevent connection pool exhaustion.
+- Commit `f9e81ba` removed Prisma db push from startup because it was exhausting Postgres connections on crash loop.
+- Login route performs `prisma.teacher.findFirst()` before it can respond.
+
+Why this matches “hang on login”:
+
+- If Prisma cannot connect to Postgres, login waits on the DB query and eventually errors/timeouts.
+- If the Railway Postgres connection limit is exhausted, all Prisma queries may stall or fail.
+- If a crash loop repeatedly starts Prisma/migration commands, connections can be consumed quickly.
+
+What to check next:
+
+- Railway backend logs around login time for:
+  - `PrismaClientInitializationError`
+  - `P1001` cannot reach database
+  - `P1002` database timed out
+  - `P2024` timed out fetching a new connection from the pool
+  - `too many connections`
+- Railway Postgres metrics/connection count.
+- Confirm `DATABASE_URL` points to the correct Railway Postgres instance.
+- Confirm no startup command still runs `prisma db push` or `prisma migrate deploy` outside this repo’s `docker-entrypoint.sh` — Railway may have an overridden start command in dashboard settings.
+
+### 3. Migration/schema drift from the grading feature and revert
+
+Evidence:
+
+- Commit `33a696b` added grading Prisma models:
+  - `GradeType`
+  - `GradeTemplate`
+  - `GradeEntry`
+- It also added `npx prisma migrate deploy` to container startup.
+- Commit `f654b73` reverted the feature and removed the migration files from the repo.
+- Current repo has no migration directory.
+
+Why this matters:
+
+- If the grading commit was deployed, the production database may have tables/types that current code no longer uses. Extra tables usually do not break login by themselves.
+- But if the deploy partially applied, failed, or left `_prisma_migrations` in a bad state, later Prisma commands can fail.
+- If Railway is still configured to run migrations at startup, it may fail because current repo has no migration files.
+
+What to check next:
+
+- In Railway logs, look for `prisma migrate deploy` still running.
+- In DB, check `_prisma_migrations` status if table exists.
+- Decide whether the project wants migration-based deploys or schema-push deploys. Do not mix both casually.
+- For production, use committed migrations, not `db push` on every startup.
+
+### 4. Auth cookie settings are not production-safe if frontend/backend are cross-site
+
+Evidence:
+
+Current cookie options:
+
+```ts
+res.cookie('token', token, {
+  httpOnly: true,
+  secure: false,
+  sameSite: 'lax',
+  maxAge: 8 * 60 * 60 * 1000,
+})
+```
+
+Why this may affect login:
+
+- If frontend and backend are on different Railway domains, `SameSite=Lax` plus `secure:false` may prevent the cookie from being accepted/sent in the way you expect.
+- The login POST may succeed, but the next `/api/auth/me` or `/api/teacher/dashboard` request appears unauthenticated.
+- This usually causes redirect or “Not authenticated,” not a true server hang — but users may describe it as being stuck on login.
+
+What to check next:
+
+- In DevTools → Application → Cookies, confirm `token` appears after login.
+- In Network tab, confirm the next request sends `Cookie: token=...`.
+- If frontend and backend are separate HTTPS domains, review whether cookie should use:
+
+```ts
+secure: true
+sameSite: 'none'
+```
+
+But only after confirming actual deployment topology.
+
+### 5. Global crash handlers may convert recoverable async errors into full process restarts
+
+Evidence:
+
+`server/src/index.ts` has:
+
+```ts
+process.on('uncaughtException', ... process.exit(1))
+process.on('unhandledRejection', ... process.exit(1))
+```
+
+This is useful for surfacing logs, but if any route or background task produces an unhandled rejection, the whole server exits and Railway restarts it.
+
+Why this can look like login hangs:
+
+- User clicks login.
+- A background or route-level Prisma error throws outside Express error handling.
+- Process exits.
+- Railway restarts backend.
+- Frontend request hangs/fails.
+
+What to check next:
+
+- Railway logs for `[CRASH] uncaughtException` or `[CRASH] unhandledRejection`.
+- If present, the logged stack trace is the best source of truth.
+
+## Lower-probability code-level observations
+
+### Current `parts-request-dashboard` branch is not the cause by itself
+
+It only changes `.gitignore`; no login, Prisma, Railway, or UI runtime code changed.
+
+### Current current-source build is clean
+
+Both server and client build locally:
+
+```text
+server build: PASS
+client build: PASS
+```
+
+This reduces the probability of a TypeScript compile error or missing import in the current branch.
+
+### No current Prisma migrations exist
+
+Current repo is schema-only. That can be okay for local `prisma db push`, but it is risky for production Railway deploys if using `migrate deploy`.
+
+## Suggested next steps
+
+### Step 1 — Identify the exact deployed commit/branch on Railway
+
+In Railway, check which commit SHA is currently deployed for:
+
+- frontend service
+- backend service
+
+Compare it with:
+
+- `f7855ed` — `parts-request-dashboard`
+- `f654b73` — current master revert
+- `33a696b` — grading feature that added Prisma migrations and project submit
+- `f9e81ba` — removed db push startup crash-loop issue
+- `c65e5cc` — Prisma singleton fix
+
+This is critical because GitHub current branch may not match the running Railway deployment.
+
+### Step 2 — Check browser Network tab during login
+
+Try teacher login and record:
+
+- Request URL for `/api/auth/login`
+- HTTP status
+- response body
+- whether request is pending, 502, 504, CORS blocked, or JSON error
+- whether `Set-Cookie` is returned
+- whether a follow-up request to `/api/teacher/dashboard` happens
+
+Interpretation:
+
+- Pending/502/504: likely API proxy/backend crash/networking.
+- 401/403 JSON: credentials/email verification/auth issue.
+- Successful login then redirect back: likely cookie/domain settings.
+- 500 JSON: backend route/Prisma issue; check Railway logs.
+
+### Step 3 — Check Railway backend logs around the login attempt
+
+Look specifically for:
+
+```text
+[CRASH] uncaughtException
+[CRASH] unhandledRejection
+PrismaClientInitializationError
+P1001
+P1002
+P2024
+too many connections
+migrate deploy
+migrations directory
+```
+
+### Step 4 — Verify env vars in Railway
+
+Backend service should have:
+
+```text
+DATABASE_URL=...
+JWT_SECRET=...
+CLIENT_URL=...
+PORT=provided by Railway or 3001-compatible
+```
+
+Frontend service should have:
+
+```text
+API_UPSTREAM=<correct backend private hostname and port>
+```
+
+For the current Nginx config, `API_UPSTREAM` should be host:port only, because config does:
+
+```nginx
+proxy_pass http://${API_UPSTREAM};
+```
+
+Example shape:
+
+```text
+API_UPSTREAM=backend-service-name.railway.internal:3001
+```
+
+Do not include `http://` if the Nginx template already adds it.
+
+### Step 5 — Decide a production Prisma strategy
+
+Recommended production pattern:
+
+1. Commit real Prisma migrations under `server/prisma/migrations/`.
+2. Run `npx prisma migrate deploy` once per backend deploy.
+3. Do not run `prisma db push` in a crash-looping production startup.
+4. Keep Prisma as a singleton per Node process.
+5. Consider Railway/Postgres connection pooling if traffic grows.
+
+Current repo has no migrations, so either:
+
+- restore/generate proper migrations before using `migrate deploy`, or
+- avoid migration commands in Railway startup until migrations are intentionally introduced.
+
+### Step 6 — Add a temporary diagnostic endpoint/logging before attempting fixes
+
+Before changing behavior, add evidence collection in a future branch:
+
+- log when `/api/auth/login` starts;
+- log when Prisma teacher lookup starts/ends;
+- log sanitized result: teacher found true/false, not password/token;
+- log response status;
+- optionally add `/api/health/db` that runs a tiny Prisma query.
+
+This will isolate whether the hang is:
+
+- before Express;
+- inside Prisma/DB;
+- inside bcrypt;
+- during cookie/response;
+- after login on dashboard load.
+
+## Working hypothesis
+
+Most likely root cause is not the current `parts-request-dashboard` branch. The stronger hypothesis is:
+
+> The Railway deployment was running a commit or configuration where `/api/auth/login` could not reliably reach the backend/database. This was likely caused by either an invalid frontend `API_UPSTREAM`, backend crash-looping from Prisma startup/migration behavior, or Postgres connection exhaustion. The grading feature and its migration/startup changes are suspicious because they introduced `prisma migrate deploy`, new Prisma models, and were later reverted.
+
+## Recommended immediate action order
+
+1. Check Railway deployed commit SHA for frontend and backend.
+2. Reproduce login with DevTools Network open.
+3. Check Railway backend logs at the same timestamp.
+4. Confirm `/api/health` from the deployed frontend domain.
+5. Confirm `API_UPSTREAM` and `DATABASE_URL` env vars.
+6. Only after that, create a new fix branch.
+
+## Files reviewed
+
+- `server/src/index.ts`
+- `server/src/routes/auth.ts`
+- `server/src/routes/students.ts`
+- `server/src/routes/teacher.ts`
+- `server/src/routes/rooms.ts`
+- `server/src/lib/prisma.ts`
+- `server/prisma/schema.prisma`
+- `server/docker-entrypoint.sh`
+- `server/Dockerfile`
+- `server/package.json`
+- `client/src/api/index.ts`
+- `client/src/pages/LoginPage.tsx`
+- `client/nginx.conf`
+- `client/docker-entrypoint.sh`
+- `client/Dockerfile`
+- `docker-compose.yml`
+- recent commits: `33a696b`, `f654b73`, `f9e81ba`, `c65e5cc`, `4561927`, `2b3f7ee`
+
+## Verification performed locally
+
+No source files were changed for this review.
+
+Local build checks:
+
+```text
+npm run build --prefix server -> PASS
+npm run build --prefix client -> PASS
+```
+
+Note: local builds prove the current source compiles; they do not prove Railway env vars, API proxy routing, cookies, or database connectivity are correct.

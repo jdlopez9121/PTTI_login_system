@@ -7,6 +7,7 @@ import teacherRouter from './routes/teacher'
 import roomsRouter from './routes/rooms'
 import schoolwideRouter from './routes/schoolwide'
 import gradesRouter from './routes/grades'
+import videosRouter from './routes/videos'
 import { scheduleMonthlyRotation } from './cron/monthlyRotation'
 import prisma from './lib/prisma'
 
@@ -37,6 +38,7 @@ app.use('/api/teacher', teacherRouter)
 app.use('/api/rooms', roomsRouter)
 app.use('/api/school-wide', schoolwideRouter)
 app.use('/api/grades', gradesRouter)
+app.use('/api/videos', videosRouter)
 
 // Health check
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }))
