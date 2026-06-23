@@ -21,7 +21,7 @@ export type Teacher = {
   subject1: string; subject2: string | null; subject3: string | null; shift: string
 }
 export type StudentResult = {
-  logId?: string; studentId: string; fullName: string; cohortStartMonth: number; loginTime?: string; room?: string
+  logId?: string; studentId: string; fullName: string; cohortStartMonth: number; loginTime?: string; room?: string; shift?: string
 }
 export type DashboardData = {
   teacher: Teacher

@@ -21,6 +21,10 @@
 
 body { min-height: 100vh; }
 
+a { color: var(--blue); text-decoration: none; }
+
+a:hover { text-decoration: underline; }
+
 h1 { font-size: 1.75rem; font-weight: 700; }
 h2 { font-size: 1.25rem; font-weight: 600; }
 h3 { font-size: 1rem; font-weight: 600; }
