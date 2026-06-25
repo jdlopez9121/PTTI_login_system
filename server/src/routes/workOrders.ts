@@ -95,6 +95,19 @@ function walkthroughVideoSelect() {
   }
 }
 
+function studentVideoSelect() {
+  return {
+    id: true,
+    teacherId: true,
+    title: true,
+    originalUrl: true,
+    embedUrl: true,
+    provider: true,
+    createdAt: true,
+    updatedAt: true,
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Walkthrough videos — teacher-only embedded video management
 // ---------------------------------------------------------------------------
@@ -177,6 +190,90 @@ router.delete('/walkthrough-videos/:id', requireAuth, async (req: Request, res: 
       return
     }
     res.json({ success: true, data: { message: 'Walkthrough video removed' } })
+  } catch (err) { next(err) }
+})
+
+// ---------------------------------------------------------------------------
+// Student walkthrough videos — teacher manages, students view publicly
+// ---------------------------------------------------------------------------
+router.get('/student-walkthrough-videos', async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const videos = await prisma.workOrderStudentVideo.findMany({
+      select: studentVideoSelect(),
+      orderBy: { createdAt: 'desc' },
+    })
+    res.json({ success: true, data: videos })
+  } catch (err) { next(err) }
+})
+
+router.post('/student-walkthrough-videos', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const title = String(req.body.title ?? '').trim() || null
+    const validation = normalizeWorkOrderWalkthroughVideoUrl(String(req.body.url ?? req.body.originalUrl ?? ''))
+    if (!validation.ok) {
+      res.status(400).json({ success: false, error: validation.error })
+      return
+    }
+
+    const video = await prisma.workOrderStudentVideo.create({
+      data: {
+        teacherId: req.teacher!.teacherId,
+        title,
+        originalUrl: validation.originalUrl,
+        embedUrl: validation.embedUrl,
+        provider: validation.provider,
+      },
+      select: studentVideoSelect(),
+    })
+    res.status(201).json({ success: true, data: video })
+  } catch (err) { next(err) }
+})
+
+router.put('/student-walkthrough-videos/:id', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const existing = await prisma.workOrderStudentVideo.findFirst({
+      where: { id: req.params.id },
+      select: { id: true },
+    })
+    if (!existing) {
+      res.status(404).json({ success: false, error: 'Student walkthrough video not found' })
+      return
+    }
+
+    const data: Record<string, unknown> = {}
+    if (req.body.title !== undefined) data.title = String(req.body.title).trim() || null
+    if (req.body.url !== undefined || req.body.originalUrl !== undefined) {
+      const validation = normalizeWorkOrderWalkthroughVideoUrl(String(req.body.url ?? req.body.originalUrl ?? ''))
+      if (!validation.ok) {
+        res.status(400).json({ success: false, error: validation.error })
+        return
+      }
+      Object.assign(data, {
+        originalUrl: validation.originalUrl,
+        embedUrl: validation.embedUrl,
+        provider: validation.provider,
+      })
+    }
+
+    const video = await prisma.workOrderStudentVideo.update({
+      where: { id: existing.id },
+      data,
+      select: studentVideoSelect(),
+    })
+    res.json({ success: true, data: video })
+  } catch (err) { next(err) }
+})
+
+router.delete('/student-walkthrough-videos/:id', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await prisma.workOrderStudentVideo.deleteMany({
+      where: { id: req.params.id },
+    })
+    if (result.count === 0) {
+      res.status(404).json({ success: false, error: 'Student walkthrough video not found' })
+      return
+    }
+    res.json({ success: true, data: { message: 'Student walkthrough video removed' } })
   } catch (err) { next(err) }
 })
 

@@ -179,6 +179,49 @@ async function testClientWorkOrderDashboardRendersWalkthroughVideosViewport() {
   assert.ok(panelSource.includes('deleteWorkOrderWalkthroughVideo'))
 }
 
+async function testClientWorkOrderDashboardRendersStudentVideoWalkthroughViewport() {
+  const dashboardSource = await fs.readFile(path.resolve(__dirname, '../../client/src/components/WorkOrderDashboard.tsx'), 'utf8')
+  const panelSource = await fs.readFile(path.resolve(__dirname, '../../client/src/components/StudentWalkthroughVideosPanel.tsx'), 'utf8')
+
+  assert.ok(dashboardSource.includes('StudentWalkthroughVideosPanel'))
+  assert.ok(panelSource.includes('Student Video Walkthroughs'))
+  assert.ok(panelSource.includes('Student-viewable'))
+  assert.ok(panelSource.includes('Add Video'))
+  assert.ok(panelSource.includes('iframe'))
+  assert.ok(panelSource.includes('deleteWorkOrderStudentVideo'))
+}
+
+async function testStudentVideoRoutesArePublicForGetButTeacherAuthForMutations() {
+  const routeSource = await fs.readFile(path.resolve(__dirname, '../src/routes/workOrders.ts'), 'utf8')
+
+  assert.ok(routeSource.includes("router.get('/student-walkthrough-videos'"))
+  assert.ok(routeSource.includes("router.post('/student-walkthrough-videos', requireAuth"))
+  assert.ok(routeSource.includes("router.put('/student-walkthrough-videos/:id', requireAuth"))
+  assert.ok(routeSource.includes("router.delete('/student-walkthrough-videos/:id', requireAuth"))
+
+  const getLine = routeSource.split('\n').find((line) => line.includes("router.get('/student-walkthrough-videos'"))
+  assert.ok(getLine !== undefined)
+  assert.strictEqual(getLine!.includes('requireAuth'), false, 'GET student-walkthrough-videos must not require auth')
+}
+
+async function testWorkOrderSchemaDefinesStudentVideoPersistence() {
+  const schemaSource = await fs.readFile(path.resolve(__dirname, '../prisma/schema.prisma'), 'utf8')
+
+  assert.ok(schemaSource.includes('model WorkOrderStudentVideo'))
+  assert.ok(schemaSource.includes('@map("work_order_student_videos")'))
+  assert.ok(schemaSource.includes('embedUrl'))
+  assert.ok(schemaSource.includes('provider'))
+}
+
+async function testStudentWorkOrderPanelShowsStudentVideos() {
+  const panelSource = await fs.readFile(path.resolve(__dirname, '../../client/src/components/StudentWorkOrderPanel.tsx'), 'utf8')
+
+  assert.ok(panelSource.includes('getWorkOrderStudentVideos'))
+  assert.ok(panelSource.includes('walkthroughVideos'))
+  assert.ok(panelSource.includes('Video Walkthroughs'))
+  assert.ok(panelSource.includes('iframe'))
+}
+
 async function testPersistWorkOrderTemplateFileStoresVerifiedTypeExtension() {
   const uploadDir = await fs.mkdtemp(path.join(os.tmpdir(), 'work-order-upload-'))
   const pngBytes = Buffer.from([
@@ -226,6 +269,10 @@ async function run() {
   await testTeacherRoutesExposeWalkthroughVideoManagementOnlyToTeachers()
   await testWorkOrderSchemaDefinesWalkthroughVideoPersistence()
   await testClientWorkOrderDashboardRendersWalkthroughVideosViewport()
+  await testClientWorkOrderDashboardRendersStudentVideoWalkthroughViewport()
+  await testStudentVideoRoutesArePublicForGetButTeacherAuthForMutations()
+  await testWorkOrderSchemaDefinesStudentVideoPersistence()
+  await testStudentWorkOrderPanelShowsStudentVideos()
   await testPersistWorkOrderTemplateFileStoresVerifiedTypeExtension()
   await testPersistWorkOrderTemplateFileRejectsSpoofedNonImageUpload()
   console.log('workOrderService tests passed')

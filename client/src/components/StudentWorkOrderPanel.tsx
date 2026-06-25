@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   type StudentWorkOrderTicket,
+  type WorkOrderStudentVideo,
   getStudentWorkOrderTickets,
+  getWorkOrderStudentVideos,
   submitStudentWorkOrderCompleted,
   updateStudentWorkPerformed,
 } from '../api'
@@ -18,6 +20,11 @@ export default function StudentWorkOrderPanel() {
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error' | 'warning'; text: string } | null>(null)
+  const [walkthroughVideos, setWalkthroughVideos] = useState<WorkOrderStudentVideo[]>([])
+
+  useEffect(() => {
+    getWorkOrderStudentVideos().then(setWalkthroughVideos).catch(() => {})
+  }, [])
 
   const selected = useMemo(() => tickets.find((ticket) => ticket.id === selectedId) ?? null, [selectedId, tickets])
 
@@ -159,6 +166,35 @@ export default function StudentWorkOrderPanel() {
                 </div>
               ) : <p style={{ color: 'var(--gray-500)' }}>Select a ticket.</p>}
             </section>
+          </div>
+        )}
+
+        {walkthroughVideos.length > 0 && (
+          <div className="card" style={{ maxWidth: 980, margin: '1.25rem auto 0' }}>
+            <h2 style={{ marginBottom: '0.25rem' }}>Video Walkthroughs</h2>
+            <p style={{ color: 'var(--gray-600)', marginBottom: '1rem' }}>
+              Reference videos provided by your teacher for work order guidance.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
+              {walkthroughVideos.map((video) => (
+                <article key={video.id} style={{ border: '1px solid var(--gray-200)', borderRadius: 8, overflow: 'hidden', background: '#fff' }}>
+                  <div style={{ aspectRatio: '16 / 9', background: 'var(--gray-100)' }}>
+                    <iframe
+                      title={video.title || `Walkthrough video ${video.id}`}
+                      src={video.embedUrl}
+                      style={{ width: '100%', height: '100%', border: 0 }}
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      allowFullScreen
+                    />
+                  </div>
+                  {video.title && (
+                    <div style={{ padding: '0.65rem' }}>
+                      <strong style={{ fontSize: '0.9rem' }}>{video.title}</strong>
+                    </div>
+                  )}
+                </article>
+              ))}
+            </div>
           </div>
         )}
       </div>

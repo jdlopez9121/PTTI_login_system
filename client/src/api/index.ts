@@ -308,6 +308,26 @@ export const updateWorkOrderWalkthroughVideo = (id: string, data: { url?: string
   request<WorkOrderWalkthroughVideo>(`/work-orders/walkthrough-videos/${id}`, { method: 'PUT', body: JSON.stringify(data) })
 export const deleteWorkOrderWalkthroughVideo = (id: string) =>
   request<{ message: string }>(`/work-orders/walkthrough-videos/${id}`, { method: 'DELETE' })
+export type WorkOrderStudentVideo = {
+  id: string
+  teacherId: string
+  title: string | null
+  originalUrl: string
+  embedUrl: string
+  provider: WorkOrderWalkthroughVideoProvider
+  createdAt: string
+  updatedAt: string
+}
+
+export const getWorkOrderStudentVideos = () =>
+  request<WorkOrderStudentVideo[]>('/work-orders/student-walkthrough-videos')
+export const createWorkOrderStudentVideo = (data: { url: string; title?: string }) =>
+  request<WorkOrderStudentVideo>('/work-orders/student-walkthrough-videos', { method: 'POST', body: JSON.stringify(data) })
+export const updateWorkOrderStudentVideo = (id: string, data: { url?: string; title?: string }) =>
+  request<WorkOrderStudentVideo>(`/work-orders/student-walkthrough-videos/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+export const deleteWorkOrderStudentVideo = (id: string) =>
+  request<{ message: string }>(`/work-orders/student-walkthrough-videos/${id}`, { method: 'DELETE' })
+
 export const getStudentWorkOrderTickets = (studentId: string) =>
   request<StudentWorkOrderTicket[]>(`/work-orders/student/${encodeURIComponent(studentId)}/tickets`)
 export const updateStudentWorkPerformed = (studentId: string, ticketId: string, workPerformed: string) =>

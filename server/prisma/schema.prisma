@@ -112,6 +112,7 @@ model Teacher {
   workOrderMessages            WorkOrderMessage[]
   workOrderNotifications       WorkOrderNotification[]
   workOrderWalkthroughVideos   WorkOrderWalkthroughVideo[]
+  workOrderStudentVideos       WorkOrderStudentVideo[]
 
   @@map("teachers")
 }
@@ -351,4 +352,19 @@ model WorkOrderWalkthroughVideo {
 
   @@index([teacherId, createdAt])
   @@map("work_order_walkthrough_videos")
+}
+
+model WorkOrderStudentVideo {
+  id          String   @id @default(uuid())
+  teacherId   String   @map("teacher_id")
+  teacher     Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  title       String?
+  originalUrl String   @map("original_url")
+  embedUrl    String   @map("embed_url")
+  provider    String
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([createdAt])
+  @@map("work_order_student_videos")
 }
