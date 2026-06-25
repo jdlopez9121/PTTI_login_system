@@ -7,6 +7,7 @@ import {
   buildStudentAssigneeLookup,
   buildStudentTicketSelect,
   buildTicketCreateData,
+  normalizeWorkOrderWalkthroughVideoUrl,
   persistWorkOrderTemplateFile,
   validateOneAssignee,
 } from '../services/workOrderService'
@@ -80,6 +81,104 @@ const ticketInclude = {
 }
 
 const studentTicketSelect = buildStudentTicketSelect()
+
+function walkthroughVideoSelect() {
+  return {
+    id: true,
+    teacherId: true,
+    title: true,
+    originalUrl: true,
+    embedUrl: true,
+    provider: true,
+    createdAt: true,
+    updatedAt: true,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Walkthrough videos — teacher-only embedded video management
+// ---------------------------------------------------------------------------
+router.get('/walkthrough-videos', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const videos = await prisma.workOrderWalkthroughVideo.findMany({
+      where: { teacherId: req.teacher!.teacherId },
+      select: walkthroughVideoSelect(),
+      orderBy: { createdAt: 'desc' },
+    })
+    res.json({ success: true, data: videos })
+  } catch (err) { next(err) }
+})
+
+router.post('/walkthrough-videos', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const title = String(req.body.title ?? '').trim() || null
+    const validation = normalizeWorkOrderWalkthroughVideoUrl(String(req.body.url ?? req.body.originalUrl ?? ''))
+    if (!validation.ok) {
+      res.status(400).json({ success: false, error: validation.error })
+      return
+    }
+
+    const video = await prisma.workOrderWalkthroughVideo.create({
+      data: {
+        teacherId: req.teacher!.teacherId,
+        title,
+        originalUrl: validation.originalUrl,
+        embedUrl: validation.embedUrl,
+        provider: validation.provider,
+      },
+      select: walkthroughVideoSelect(),
+    })
+    res.status(201).json({ success: true, data: video })
+  } catch (err) { next(err) }
+})
+
+router.put('/walkthrough-videos/:id', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const existing = await prisma.workOrderWalkthroughVideo.findFirst({
+      where: { id: req.params.id, teacherId: req.teacher!.teacherId },
+      select: { id: true },
+    })
+    if (!existing) {
+      res.status(404).json({ success: false, error: 'Walkthrough video not found' })
+      return
+    }
+
+    const data: Record<string, unknown> = {}
+    if (req.body.title !== undefined) data.title = String(req.body.title).trim() || null
+    if (req.body.url !== undefined || req.body.originalUrl !== undefined) {
+      const validation = normalizeWorkOrderWalkthroughVideoUrl(String(req.body.url ?? req.body.originalUrl ?? ''))
+      if (!validation.ok) {
+        res.status(400).json({ success: false, error: validation.error })
+        return
+      }
+      Object.assign(data, {
+        originalUrl: validation.originalUrl,
+        embedUrl: validation.embedUrl,
+        provider: validation.provider,
+      })
+    }
+
+    const video = await prisma.workOrderWalkthroughVideo.update({
+      where: { id: existing.id },
+      data,
+      select: walkthroughVideoSelect(),
+    })
+    res.json({ success: true, data: video })
+  } catch (err) { next(err) }
+})
+
+router.delete('/walkthrough-videos/:id', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await prisma.workOrderWalkthroughVideo.deleteMany({
+      where: { id: req.params.id, teacherId: req.teacher!.teacherId },
+    })
+    if (result.count === 0) {
+      res.status(404).json({ success: false, error: 'Walkthrough video not found' })
+      return
+    }
+    res.json({ success: true, data: { message: 'Walkthrough video removed' } })
+  } catch (err) { next(err) }
+})
 
 // ---------------------------------------------------------------------------
 // Templates — teacher-authenticated management

@@ -6,6 +6,7 @@ import {
   buildStudentAssigneeLookup,
   buildStudentTicketSelect,
   buildTicketCreateData,
+  normalizeWorkOrderWalkthroughVideoUrl,
   persistWorkOrderTemplateFile,
   validateOneAssignee,
 } from '../src/services/workOrderService'
@@ -104,6 +105,80 @@ async function testStudentRoutesDoNotExposeChatMutationEndpoints() {
   assert.strictEqual(routeSource.includes('buildStudentCommentCreateData'), false)
 }
 
+function testNormalizeWalkthroughVideoUrlAcceptsEmbeddableProviders() {
+  assert.deepStrictEqual(normalizeWorkOrderWalkthroughVideoUrl('https://www.youtube.com/watch?v=dQw4w9WgXcQ'), {
+    ok: true,
+    originalUrl: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    embedUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
+    provider: 'youtube',
+  })
+  assert.deepStrictEqual(normalizeWorkOrderWalkthroughVideoUrl('https://youtu.be/dQw4w9WgXcQ?t=42'), {
+    ok: true,
+    originalUrl: 'https://youtu.be/dQw4w9WgXcQ?t=42',
+    embedUrl: 'https://www.youtube.com/embed/dQw4w9WgXcQ',
+    provider: 'youtube',
+  })
+  assert.deepStrictEqual(normalizeWorkOrderWalkthroughVideoUrl('https://vimeo.com/123456789'), {
+    ok: true,
+    originalUrl: 'https://vimeo.com/123456789',
+    embedUrl: 'https://player.vimeo.com/video/123456789',
+    provider: 'vimeo',
+  })
+  assert.deepStrictEqual(normalizeWorkOrderWalkthroughVideoUrl('https://training.example.edu/embed/safety-lesson'), {
+    ok: true,
+    originalUrl: 'https://training.example.edu/embed/safety-lesson',
+    embedUrl: 'https://training.example.edu/embed/safety-lesson',
+    provider: 'embed',
+  })
+}
+
+function testNormalizeWalkthroughVideoUrlRejectsNonEmbedUrls() {
+  assert.deepStrictEqual(normalizeWorkOrderWalkthroughVideoUrl('not a url'), {
+    ok: false,
+    error: 'Enter a valid http(s) video URL',
+  })
+  assert.deepStrictEqual(normalizeWorkOrderWalkthroughVideoUrl('https://example.com/video/not-embeddable'), {
+    ok: false,
+    error: 'Enter a YouTube, Vimeo, or /embed/ video URL',
+  })
+  assert.deepStrictEqual(normalizeWorkOrderWalkthroughVideoUrl('javascript:alert(1)'), {
+    ok: false,
+    error: 'Enter a valid http(s) video URL',
+  })
+}
+
+async function testTeacherRoutesExposeWalkthroughVideoManagementOnlyToTeachers() {
+  const routeSource = await fs.readFile(path.resolve(__dirname, '../src/routes/workOrders.ts'), 'utf8')
+
+  assert.ok(routeSource.includes("router.get('/walkthrough-videos', requireAuth"))
+  assert.ok(routeSource.includes("router.post('/walkthrough-videos', requireAuth"))
+  assert.ok(routeSource.includes("router.put('/walkthrough-videos/:id', requireAuth"))
+  assert.ok(routeSource.includes("router.delete('/walkthrough-videos/:id', requireAuth"))
+  assert.strictEqual(routeSource.includes('/student/:studentId/walkthrough-videos'), false)
+  assert.strictEqual(routeSource.includes('/student/:studentId/videos'), false)
+}
+
+async function testWorkOrderSchemaDefinesWalkthroughVideoPersistence() {
+  const schemaSource = await fs.readFile(path.resolve(__dirname, '../prisma/schema.prisma'), 'utf8')
+
+  assert.ok(schemaSource.includes('model WorkOrderWalkthroughVideo'))
+  assert.ok(schemaSource.includes('teacherId'))
+  assert.ok(schemaSource.includes('@map("work_order_walkthrough_videos")'))
+  assert.ok(schemaSource.includes('embedUrl'))
+  assert.ok(schemaSource.includes('provider'))
+}
+
+async function testClientWorkOrderDashboardRendersWalkthroughVideosViewport() {
+  const dashboardSource = await fs.readFile(path.resolve(__dirname, '../../client/src/components/WorkOrderDashboard.tsx'), 'utf8')
+  const panelSource = await fs.readFile(path.resolve(__dirname, '../../client/src/components/WorkOrderWalkthroughVideosPanel.tsx'), 'utf8')
+
+  assert.ok(dashboardSource.includes('WorkOrderWalkthroughVideosPanel'))
+  assert.ok(panelSource.includes('Walkthrough Videos'))
+  assert.ok(panelSource.includes('Add Video'))
+  assert.ok(panelSource.includes('iframe'))
+  assert.ok(panelSource.includes('deleteWorkOrderWalkthroughVideo'))
+}
+
 async function testPersistWorkOrderTemplateFileStoresVerifiedTypeExtension() {
   const uploadDir = await fs.mkdtemp(path.join(os.tmpdir(), 'work-order-upload-'))
   const pngBytes = Buffer.from([
@@ -146,6 +221,11 @@ async function run() {
   testBuildStudentAssigneeLookupAllowsPublicStudentId()
   testBuildStudentTicketSelectExposesOnlyStudentDashboardFieldsWithoutMessages()
   await testStudentRoutesDoNotExposeChatMutationEndpoints()
+  testNormalizeWalkthroughVideoUrlAcceptsEmbeddableProviders()
+  testNormalizeWalkthroughVideoUrlRejectsNonEmbedUrls()
+  await testTeacherRoutesExposeWalkthroughVideoManagementOnlyToTeachers()
+  await testWorkOrderSchemaDefinesWalkthroughVideoPersistence()
+  await testClientWorkOrderDashboardRendersWalkthroughVideosViewport()
   await testPersistWorkOrderTemplateFileStoresVerifiedTypeExtension()
   await testPersistWorkOrderTemplateFileRejectsSpoofedNonImageUpload()
   console.log('workOrderService tests passed')

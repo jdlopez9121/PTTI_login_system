@@ -235,6 +235,17 @@ export type WorkOrderNotification = {
   createdAt: string
   ticket?: { id: string; title: string; status: WorkOrderStatus } | null
 }
+export type WorkOrderWalkthroughVideoProvider = 'youtube' | 'vimeo' | 'embed'
+export type WorkOrderWalkthroughVideo = {
+  id: string
+  teacherId: string
+  title: string | null
+  originalUrl: string
+  embedUrl: string
+  provider: WorkOrderWalkthroughVideoProvider
+  createdAt: string
+  updatedAt: string
+}
 export type StudentWorkOrderTicket = Pick<WorkOrderTicket,
   'id' | 'title' | 'issueDescription' | 'workPerformed' | 'templateNameSnapshot' |
   'templateDescriptionSnapshot' | 'templatePhotoPathSnapshot' | 'templatePhotoUrlSnapshot' |
@@ -289,6 +300,14 @@ export const getWorkOrderNotifications = (unreadOnly = false) =>
   request<WorkOrderNotification[]>(`/work-orders/notifications${unreadOnly ? '?unreadOnly=true' : ''}`)
 export const markWorkOrderNotificationRead = (id: string) =>
   request<WorkOrderNotification>(`/work-orders/notifications/${id}/read`, { method: 'POST' })
+export const getWorkOrderWalkthroughVideos = () =>
+  request<WorkOrderWalkthroughVideo[]>('/work-orders/walkthrough-videos')
+export const createWorkOrderWalkthroughVideo = (data: { url: string; title?: string }) =>
+  request<WorkOrderWalkthroughVideo>('/work-orders/walkthrough-videos', { method: 'POST', body: JSON.stringify(data) })
+export const updateWorkOrderWalkthroughVideo = (id: string, data: { url?: string; title?: string }) =>
+  request<WorkOrderWalkthroughVideo>(`/work-orders/walkthrough-videos/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+export const deleteWorkOrderWalkthroughVideo = (id: string) =>
+  request<{ message: string }>(`/work-orders/walkthrough-videos/${id}`, { method: 'DELETE' })
 export const getStudentWorkOrderTickets = (studentId: string) =>
   request<StudentWorkOrderTicket[]>(`/work-orders/student/${encodeURIComponent(studentId)}/tickets`)
 export const updateStudentWorkPerformed = (studentId: string, ticketId: string, workPerformed: string) =>

@@ -107,6 +107,82 @@ export function buildTicketCreateData(args: {
   }
 }
 
+export type WorkOrderWalkthroughVideoProvider = 'youtube' | 'vimeo' | 'embed'
+
+export type WorkOrderWalkthroughVideoUrlValidation =
+  | { ok: true; originalUrl: string; embedUrl: string; provider: WorkOrderWalkthroughVideoProvider }
+  | { ok: false; error: string }
+
+function cleanUrlForStorage(url: URL): string {
+  url.hash = ''
+  return url.toString()
+}
+
+function youtubeVideoId(url: URL): string | null {
+  const hostname = url.hostname.replace(/^www\./, '').toLowerCase()
+  if (hostname === 'youtu.be') {
+    return url.pathname.split('/').filter(Boolean)[0] ?? null
+  }
+  if (!['youtube.com', 'youtube-nocookie.com'].includes(hostname)) return null
+  if (url.pathname === '/watch') return url.searchParams.get('v')
+  const parts = url.pathname.split('/').filter(Boolean)
+  if (['embed', 'shorts'].includes(parts[0])) return parts[1] ?? null
+  return null
+}
+
+function vimeoVideoId(url: URL): string | null {
+  const hostname = url.hostname.replace(/^www\./, '').toLowerCase()
+  if (!['vimeo.com', 'player.vimeo.com'].includes(hostname)) return null
+  const parts = url.pathname.split('/').filter(Boolean)
+  if (hostname === 'player.vimeo.com' && parts[0] === 'video') return parts[1] ?? null
+  return /^\d+$/.test(parts[0] ?? '') ? parts[0] : null
+}
+
+export function normalizeWorkOrderWalkthroughVideoUrl(input: string): WorkOrderWalkthroughVideoUrlValidation {
+  const trimmed = input.trim()
+  let parsed: URL
+  try {
+    parsed = new URL(trimmed)
+  } catch {
+    return { ok: false, error: 'Enter a valid http(s) video URL' }
+  }
+
+  if (!['http:', 'https:'].includes(parsed.protocol)) {
+    return { ok: false, error: 'Enter a valid http(s) video URL' }
+  }
+
+  const youtubeId = youtubeVideoId(parsed)
+  if (youtubeId) {
+    return {
+      ok: true,
+      originalUrl: cleanUrlForStorage(new URL(trimmed)),
+      embedUrl: `https://www.youtube.com/embed/${encodeURIComponent(youtubeId)}`,
+      provider: 'youtube',
+    }
+  }
+
+  const vimeoId = vimeoVideoId(parsed)
+  if (vimeoId) {
+    return {
+      ok: true,
+      originalUrl: cleanUrlForStorage(new URL(trimmed)),
+      embedUrl: `https://player.vimeo.com/video/${encodeURIComponent(vimeoId)}`,
+      provider: 'vimeo',
+    }
+  }
+
+  if (parsed.pathname.split('/').filter(Boolean).includes('embed')) {
+    return {
+      ok: true,
+      originalUrl: cleanUrlForStorage(new URL(trimmed)),
+      embedUrl: cleanUrlForStorage(parsed),
+      provider: 'embed',
+    }
+  }
+
+  return { ok: false, error: 'Enter a YouTube, Vimeo, or /embed/ video URL' }
+}
+
 export function resolveWorkOrderUploadDir(): string {
   return process.env.WORK_ORDER_UPLOAD_DIR ?? path.resolve(process.cwd(), 'uploads', 'work-order-templates')
 }

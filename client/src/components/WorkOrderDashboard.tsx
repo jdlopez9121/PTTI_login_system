@@ -12,6 +12,7 @@ import {
 import WorkOrderCreateModal from './WorkOrderCreateModal'
 import WorkOrderTemplateManager from './WorkOrderTemplateManager'
 import WorkOrderTicketDetail from './WorkOrderTicketDetail'
+import WorkOrderWalkthroughVideosPanel from './WorkOrderWalkthroughVideosPanel'
 import { formatDisplayName } from '../utils/formatName'
 
 type Props = { onClose: () => void }
@@ -96,7 +97,7 @@ export default function WorkOrderDashboard({ onClose }: Props) {
 
   return (
     <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="modal" style={{ width: 'min(1180px, 97vw)', maxHeight: '94vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <div className="modal" style={{ width: 'min(1360px, 98vw)', maxHeight: '94vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <div className="modal-header">
           <div>
             <h2>Work Orders</h2>
@@ -123,7 +124,7 @@ export default function WorkOrderDashboard({ onClose }: Props) {
         {error && <div className="alert alert-error" style={{ marginBottom: '0.75rem' }}>{error}</div>}
         {showTemplates && <div style={{ marginBottom: '0.75rem', overflow: 'auto', flexShrink: 0, maxHeight: 310 }}><WorkOrderTemplateManager templates={templates} onChanged={loadData} /></div>}
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(250px, 0.9fr) minmax(360px, 1.4fr) minmax(220px, 0.75fr)', gap: '0.75rem', flex: 1, minHeight: 0 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(230px, 0.85fr) minmax(340px, 1.2fr) minmax(260px, 0.9fr) minmax(220px, 0.7fr)', gap: '0.75rem', flex: 1, minHeight: 0 }}>
           <section style={{ overflow: 'auto', border: '1px solid var(--gray-200)', borderRadius: 8 }}>
             <div style={{ padding: '0.75rem', borderBottom: '1px solid var(--gray-200)', background: 'var(--gray-50)' }}>
               <h3>Tickets</h3>
@@ -158,6 +159,10 @@ export default function WorkOrderDashboard({ onClose }: Props) {
                 onDeleted={(ticket) => { mergeTicket(ticket); loadData() }}
               />
             ) : <p style={{ color: 'var(--gray-500)' }}>Select or create a ticket.</p>}
+          </section>
+
+          <section style={{ overflow: 'hidden', border: '1px solid var(--gray-200)', borderRadius: 8 }}>
+            <WorkOrderWalkthroughVideosPanel />
           </section>
 
           <section style={{ overflow: 'auto', border: '1px solid var(--gray-200)', borderRadius: 8 }}>

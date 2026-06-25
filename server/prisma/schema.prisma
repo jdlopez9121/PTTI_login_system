@@ -109,8 +109,9 @@ model Teacher {
   createdNotifications     Notification[]
   createdWorkOrderTickets  WorkOrderTicket[]       @relation("WorkOrderTicketCreator")
   assignedWorkOrderTickets WorkOrderTicket[]       @relation("TeacherWorkOrderTickets")
-  workOrderMessages        WorkOrderMessage[]
-  workOrderNotifications   WorkOrderNotification[]
+  workOrderMessages            WorkOrderMessage[]
+  workOrderNotifications       WorkOrderNotification[]
+  workOrderWalkthroughVideos   WorkOrderWalkthroughVideo[]
 
   @@map("teachers")
 }
@@ -335,4 +336,19 @@ model WorkOrderNotification {
   @@index([teacherId, readAt, createdAt])
   @@index([ticketId])
   @@map("work_order_notifications")
+}
+
+model WorkOrderWalkthroughVideo {
+  id          String   @id @default(uuid())
+  teacherId   String   @map("teacher_id")
+  teacher     Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  title       String?
+  originalUrl String   @map("original_url")
+  embedUrl    String   @map("embed_url")
+  provider    String
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([teacherId, createdAt])
+  @@map("work_order_walkthrough_videos")
 }

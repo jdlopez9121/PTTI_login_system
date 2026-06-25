@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   type StudentWorkOrderTicket,
   getStudentWorkOrderTickets,
@@ -85,10 +86,22 @@ export default function StudentWorkOrderPanel() {
   return (
     <div style={{ minHeight: '100vh', padding: '1rem', background: 'var(--gray-50)' }}>
       <div className="card" style={{ maxWidth: 980, margin: '0 auto' }}>
-        <h1 style={{ marginBottom: '0.25rem' }}>Student Work Orders</h1>
-        <p style={{ color: 'var(--gray-600)', marginBottom: '1rem' }}>
-          Enter your student ID to view assigned work orders. You can only edit the work performed summary and submit your assignment as completed.
-        </p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'flex-start', flexWrap: 'wrap', marginBottom: '1rem' }}>
+          <div>
+            <h1 style={{ marginBottom: '0.25rem' }}>Student Work Orders</h1>
+            <p style={{ color: 'var(--gray-600)', marginBottom: 0 }}>
+              Enter your student ID to view assigned work orders. You can only edit the work performed summary and submit your assignment as completed.
+            </p>
+          </div>
+          <Link
+            to="/"
+            className="btn btn-secondary"
+            aria-label="Back to sign-in screen"
+            style={{ flexShrink: 0 }}
+          >
+            ← Back to Sign-In
+          </Link>
+        </div>
 
         <form onSubmit={(e) => { e.preventDefault(); loadTickets() }} style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'end', marginBottom: '1rem' }}>
           <div className="form-group" style={{ flex: 1, minWidth: 220, marginBottom: 0 }}>
