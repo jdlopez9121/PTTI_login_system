@@ -2,5 +2,5 @@
 set -e
 
 echo "Starting PTTI server..."
-npx prisma migrate deploy
+node dist/scripts/applyStudentVideos.js
 exec node dist/index.js
