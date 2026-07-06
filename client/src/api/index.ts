@@ -221,6 +221,8 @@ export type WorkOrderTicket = {
   assignedAt?: string | null
   submittedCompletedAt?: string | null
   completedAt?: string | null
+  archivedAt?: string | null
+  archivedById?: string | null
   createdAt: string
   updatedAt: string
   messages?: WorkOrderMessage[]
@@ -283,6 +285,11 @@ export const searchWorkOrderAssignees = (q = '') =>
   request<WorkOrderAssignees>(`/work-orders/assignees${q ? `?q=${encodeURIComponent(q)}` : ''}`)
 export const getWorkOrderTickets = (status?: WorkOrderStatus | '') =>
   request<WorkOrderTicket[]>(`/work-orders/tickets${status ? `?status=${status}` : ''}`)
+export const getArchivedWorkOrderTickets = (status?: WorkOrderStatus | '') => {
+  const params = new URLSearchParams({ archivedOnly: 'true' })
+  if (status) params.set('status', status)
+  return request<WorkOrderTicket[]>(`/work-orders/tickets?${params.toString()}`)
+}
 export const createWorkOrderTicket = (data: {
   templateId: string; title: string; issueDescription: string
   assigneeStudentId?: string; assigneeTeacherId?: string
@@ -294,6 +301,10 @@ export const updateWorkOrderTicket = (id: string, data: Partial<{
 }>) => request<WorkOrderTicket>(`/work-orders/tickets/${id}`, { method: 'PUT', body: JSON.stringify(data) })
 export const cancelWorkOrderTicket = (id: string) =>
   request<WorkOrderTicket>(`/work-orders/tickets/${id}`, { method: 'DELETE' })
+export const archiveWorkOrderTicket = (id: string) =>
+  request<WorkOrderTicket>(`/work-orders/tickets/${id}/archive`, { method: 'POST' })
+export const deleteWorkOrderTicket = (id: string) =>
+  request<{ message: string }>(`/work-orders/tickets/${id}/permanent`, { method: 'DELETE' })
 export const addWorkOrderMessage = (ticketId: string, body: string) =>
   request<WorkOrderMessage>(`/work-orders/tickets/${ticketId}/messages`, { method: 'POST', body: JSON.stringify({ body }) })
 export const getWorkOrderNotifications = (unreadOnly = false) =>
@@ -338,6 +349,11 @@ export const submitStudentWorkOrderCompleted = (studentId: string, ticketId: str
   request<StudentWorkOrderTicket>(`/work-orders/student/${encodeURIComponent(studentId)}/tickets/${ticketId}/submit-completed`, {
     method: 'POST', body: JSON.stringify({ workPerformed }),
   })
+
+export function workOrderPhotoSrc(url: string | null | undefined): string {
+  if (!url) return ''
+  return url.replace(/^\/uploads\/work-order-templates\//, '/api/work-orders/template-photos/')
+}
 
 // ---------------------------------------------------------------------------
 // Grades

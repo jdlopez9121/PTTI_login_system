@@ -7,6 +7,7 @@ import {
   getWorkOrderStudentVideos,
   submitStudentWorkOrderCompleted,
   updateStudentWorkPerformed,
+  workOrderPhotoSrc,
 } from '../api'
 
 const displayStatus = (status: string) => status.replace(/_/g, ' ')
@@ -146,7 +147,7 @@ export default function StudentWorkOrderPanel() {
                   </div>
 
                   {selected.templatePhotoUrlSnapshot && (
-                    <img src={selected.templatePhotoUrlSnapshot} alt={selected.templateNameSnapshot ?? selected.title} style={{ width: '100%', maxHeight: 240, objectFit: 'contain', border: '1px solid var(--gray-200)', borderRadius: 8, background: '#fff' }} />
+                    <img src={workOrderPhotoSrc(selected.templatePhotoUrlSnapshot)} alt={selected.templateNameSnapshot ?? selected.title} style={{ width: '100%', maxHeight: 240, objectFit: 'contain', border: '1px solid var(--gray-200)', borderRadius: 8, background: '#fff' }} />
                   )}
 
                   <div className="card" style={{ boxShadow: 'none', border: '1px solid var(--gray-200)', padding: '1rem' }}>

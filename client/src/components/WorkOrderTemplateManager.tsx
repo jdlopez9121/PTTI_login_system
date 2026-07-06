@@ -4,6 +4,7 @@ import {
   createWorkOrderTemplate,
   deleteWorkOrderTemplate,
   updateWorkOrderTemplate,
+  workOrderPhotoSrc,
 } from '../api'
 
 type Props = {
@@ -95,7 +96,7 @@ export default function WorkOrderTemplateManager({ templates, onChanged }: Props
         ) : templates.map((template) => (
           <div key={template.id} className="card" style={{ padding: '0.75rem', boxShadow: 'none', border: '1px solid var(--gray-200)' }}>
             {template.photoUrl && (
-              <img src={template.photoUrl} alt={template.name} style={{ width: '100%', maxHeight: 130, objectFit: 'contain', borderRadius: 6, background: '#fff', marginBottom: '0.5rem' }} />
+              <img src={workOrderPhotoSrc(template.photoUrl)} alt={template.name} style={{ width: '100%', maxHeight: 130, objectFit: 'contain', borderRadius: 6, background: '#fff', marginBottom: '0.5rem' }} />
             )}
             <strong>{template.name}</strong>
             <p style={{ color: 'var(--gray-600)', fontSize: '0.78rem', marginTop: '0.2rem' }}>{template.versionLabel ?? 'No version'}</p>

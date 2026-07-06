@@ -188,7 +188,7 @@ export function resolveWorkOrderUploadDir(): string {
 }
 
 export function workOrderUploadUrl(filename: string): string {
-  return `/uploads/work-order-templates/${filename}`
+  return `/api/work-orders/template-photos/${filename}`
 }
 
 export const WORK_ORDER_IMAGE_TYPES = {

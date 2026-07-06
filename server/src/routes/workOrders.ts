@@ -1,5 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express'
+import fs from 'fs/promises'
 import multer from 'multer'
+import type { Prisma } from '@prisma/client'
 import prisma from '../lib/prisma'
 import { requireAuth } from '../middleware/requireAuth'
 import {
@@ -9,6 +11,7 @@ import {
   buildTicketCreateData,
   normalizeWorkOrderWalkthroughVideoUrl,
   persistWorkOrderTemplateFile,
+  resolveSafeWorkOrderUploadPath,
   validateOneAssignee,
 } from '../services/workOrderService'
 
@@ -82,6 +85,27 @@ const ticketInclude = {
 
 const studentTicketSelect = buildStudentTicketSelect()
 
+async function sendTemplatePhoto(filename: string, res: Response, next: NextFunction) {
+  try {
+    const upload = resolveSafeWorkOrderUploadPath(filename)
+    if (!upload) {
+      res.status(404).json({ success: false, error: 'Not found' })
+      return
+    }
+
+    const file = await fs.readFile(upload.filePath)
+    res.setHeader('Content-Type', upload.contentType)
+    res.setHeader('X-Content-Type-Options', 'nosniff')
+    res.send(file)
+  } catch (err: any) {
+    if (err?.code === 'ENOENT') {
+      res.status(404).json({ success: false, error: 'Not found' })
+      return
+    }
+    next(err)
+  }
+}
+
 function walkthroughVideoSelect() {
   return {
     id: true,
@@ -111,6 +135,10 @@ function studentVideoSelect() {
 // ---------------------------------------------------------------------------
 // Walkthrough videos — teacher-only embedded video management
 // ---------------------------------------------------------------------------
+router.get('/template-photos/:filename', async (req: Request, res: Response, next: NextFunction) => {
+  await sendTemplatePhoto(req.params.filename, res, next)
+})
+
 router.get('/walkthrough-videos', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const videos = await prisma.workOrderWalkthroughVideo.findMany({
@@ -407,8 +435,17 @@ router.get('/assignees', requireAuth, async (req: Request, res: Response, next: 
 router.get('/tickets', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const status = String(req.query.status ?? '').trim()
+    const includeArchived = String(req.query.includeArchived ?? '') === 'true'
+    const archivedOnly = String(req.query.archivedOnly ?? '') === 'true'
+    const where: Prisma.WorkOrderTicketWhereInput = {}
+    if (status && VALID_STATUSES.has(status)) where.status = status as any
+    if (archivedOnly) {
+      where.archivedAt = { not: null }
+    } else if (!includeArchived) {
+      where.archivedAt = null
+    }
     const tickets = await prisma.workOrderTicket.findMany({
-      where: status && VALID_STATUSES.has(status) ? { status: status as any } : {},
+      where,
       include: ticketInclude,
       orderBy: { updatedAt: 'desc' },
     })
@@ -505,10 +542,57 @@ router.put('/tickets/:id', requireAuth, async (req: Request, res: Response, next
   } catch (err) { next(err) }
 })
 
+router.post('/tickets/:id/archive', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const existing = await prisma.workOrderTicket.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, status: true, archivedAt: true },
+    })
+    if (!existing) {
+      res.status(404).json({ success: false, error: 'Work order not found' })
+      return
+    }
+    if (!['completed', 'cancelled'].includes(existing.status)) {
+      res.status(400).json({ success: false, error: 'Only completed or cancelled work orders can be archived' })
+      return
+    }
+
+    const ticket = await prisma.workOrderTicket.update({
+      where: { id: existing.id },
+      data: {
+        archivedAt: existing.archivedAt ?? new Date(),
+        archivedById: req.teacher!.teacherId,
+      },
+      include: ticketInclude,
+    })
+    res.json({ success: true, data: ticket })
+  } catch (err) { next(err) }
+})
+
 router.delete('/tickets/:id', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const ticket = await prisma.workOrderTicket.update({ where: { id: req.params.id }, data: { status: 'cancelled' }, include: ticketInclude })
     res.json({ success: true, data: ticket })
+  } catch (err) { next(err) }
+})
+
+router.delete('/tickets/:id/permanent', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const existing = await prisma.workOrderTicket.findUnique({
+      where: { id: req.params.id },
+      select: { id: true, status: true, archivedAt: true },
+    })
+    if (!existing) {
+      res.status(404).json({ success: false, error: 'Work order not found' })
+      return
+    }
+    if (!existing.archivedAt && !['completed', 'cancelled'].includes(existing.status)) {
+      res.status(400).json({ success: false, error: 'Only archived, completed, or cancelled work orders can be deleted' })
+      return
+    }
+
+    await prisma.workOrderTicket.delete({ where: { id: existing.id } })
+    res.json({ success: true, data: { message: 'Work order deleted' } })
   } catch (err) { next(err) }
 })
 
@@ -566,7 +650,7 @@ router.get('/student/:studentId/tickets', async (req: Request, res: Response, ne
     const student = await prisma.student.findFirst({ where: { studentId: req.params.studentId, isActive: true }, select: { id: true } })
     if (!student) { res.status(404).json({ success: false, error: 'Student not found' }); return }
     const tickets = await prisma.workOrderTicket.findMany({
-      where: { assigneeType: 'student', assigneeStudentId: student.id },
+      where: { assigneeType: 'student', assigneeStudentId: student.id, archivedAt: null },
       select: studentTicketSelect,
       orderBy: { updatedAt: 'desc' },
     })
@@ -579,7 +663,7 @@ router.get('/student/:studentId/tickets/:ticketId', async (req: Request, res: Re
     const student = await prisma.student.findFirst({ where: { studentId: req.params.studentId, isActive: true }, select: { id: true } })
     if (!student) { res.status(404).json({ success: false, error: 'Student not found' }); return }
     const ticket = await prisma.workOrderTicket.findFirst({
-      where: { id: req.params.ticketId, assigneeType: 'student', assigneeStudentId: student.id },
+      where: { id: req.params.ticketId, assigneeType: 'student', assigneeStudentId: student.id, archivedAt: null },
       select: studentTicketSelect,
     })
     if (!ticket) { res.status(404).json({ success: false, error: 'Assigned work order not found' }); return }
@@ -593,7 +677,7 @@ router.patch('/student/:studentId/tickets/:ticketId/work-performed', async (req:
     if (!student) { res.status(404).json({ success: false, error: 'Student not found' }); return }
     const workPerformed = String(req.body.workPerformed ?? '').trim()
     const ticket = await prisma.workOrderTicket.updateMany({
-      where: { id: req.params.ticketId, assigneeType: 'student', assigneeStudentId: student.id, status: { notIn: ['completed', 'cancelled'] } },
+      where: { id: req.params.ticketId, assigneeType: 'student', assigneeStudentId: student.id, archivedAt: null, status: { notIn: ['completed', 'cancelled'] } },
       data: { workPerformed, status: 'in_progress' },
     })
     if (ticket.count === 0) { res.status(404).json({ success: false, error: 'Editable assigned work order not found' }); return }
@@ -607,7 +691,7 @@ router.post('/student/:studentId/tickets/:ticketId/submit-completed', async (req
     const student = await prisma.student.findFirst({ where: { studentId: req.params.studentId, isActive: true }, select: { id: true, fullName: true } })
     if (!student) { res.status(404).json({ success: false, error: 'Student not found' }); return }
     const ticket = await prisma.workOrderTicket.findFirst({
-      where: { id: req.params.ticketId, assigneeType: 'student', assigneeStudentId: student.id, status: { notIn: ['completed', 'cancelled'] } },
+      where: { id: req.params.ticketId, assigneeType: 'student', assigneeStudentId: student.id, archivedAt: null, status: { notIn: ['completed', 'cancelled'] } },
       select: { id: true, title: true, createdById: true },
     })
     if (!ticket) { res.status(404).json({ success: false, error: 'Submittable assigned work order not found' }); return }

@@ -5,6 +5,7 @@ import {
   type WorkOrderTicket,
   createWorkOrderTicket,
   searchWorkOrderAssignees,
+  workOrderPhotoSrc,
 } from '../api'
 import { formatDisplayName } from '../utils/formatName'
 
@@ -98,7 +99,7 @@ export default function WorkOrderCreateModal({ templates, onClose, onCreated }: 
               </select>
             </div>
             {selectedTemplate?.photoUrl && (
-              <img src={selectedTemplate.photoUrl} alt={selectedTemplate.name} style={{ width: '100%', maxHeight: 180, objectFit: 'contain', border: '1px solid var(--gray-200)', borderRadius: 8, marginBottom: '1rem' }} />
+              <img src={workOrderPhotoSrc(selectedTemplate.photoUrl)} alt={selectedTemplate.name} style={{ width: '100%', maxHeight: 180, objectFit: 'contain', border: '1px solid var(--gray-200)', borderRadius: 8, marginBottom: '1rem' }} />
             )}
             <div className="form-group">
               <label>Ticket title</label>

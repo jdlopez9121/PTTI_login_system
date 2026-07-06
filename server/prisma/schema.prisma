@@ -296,12 +296,15 @@ model WorkOrderTicket {
   assignedAt                       DateTime?               @map("assigned_at")
   submittedCompletedAt             DateTime?               @map("submitted_completed_at")
   completedAt                      DateTime?               @map("completed_at")
+  archivedAt                       DateTime?               @map("archived_at") @db.Timestamptz
+  archivedById                     String?                 @map("archived_by_id")
   createdAt                        DateTime                @default(now()) @map("created_at")
   updatedAt                        DateTime                @updatedAt @map("updated_at")
   messages                         WorkOrderMessage[]
   notifications                    WorkOrderNotification[]
 
   @@index([status])
+  @@index([archivedAt])
   @@index([assigneeType, assigneeStudentId])
   @@index([assigneeType, assigneeTeacherId])
   @@index([createdAt])

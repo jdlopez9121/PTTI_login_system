@@ -9,6 +9,7 @@ import {
   normalizeWorkOrderWalkthroughVideoUrl,
   persistWorkOrderTemplateFile,
   validateOneAssignee,
+  workOrderUploadUrl,
 } from '../src/services/workOrderService'
 
 function testValidateOneAssigneeRequiresExactlyOneAssignee() {
@@ -46,7 +47,7 @@ function testBuildTicketCreateDataSnapshotsTemplateFields() {
       versionLabel: 'Version 1',
       description: 'Troubleshooting card',
       photoPath: '/uploads/work-order-templates/workOrderExample.png',
-      photoUrl: '/uploads/work-order-templates/workOrderExample.png',
+      photoUrl: '/api/work-orders/template-photos/workOrderExample.png',
       photoMimeType: 'image/png',
       photoSizeBytes: 12345,
       originalFilename: 'workOrderExample.png',
@@ -240,7 +241,7 @@ async function testPersistWorkOrderTemplateFileStoresVerifiedTypeExtension() {
   assert.strictEqual(stored.originalFilename, 'dangerous-template.html')
   assert.strictEqual(path.extname(stored.storedPath), '.png')
   assert.match(path.basename(stored.storedPath), /^\d+-dangerous-template\.png$/)
-  assert.match(stored.url, /^\/uploads\/work-order-templates\/\d+-dangerous-template\.png$/)
+  assert.match(stored.url, /^\/api\/work-orders\/template-photos\/\d+-dangerous-template\.png$/)
   assert.strictEqual(await fs.readFile(stored.storedPath, 'hex'), pngBytes.toString('hex'))
 }
 
@@ -256,6 +257,43 @@ async function testPersistWorkOrderTemplateFileRejectsSpoofedNonImageUpload() {
     }),
     /photo must be a PNG, JPEG, WebP, or GIF image/,
   )
+}
+
+function testWorkOrderUploadUrlUsesApiProxyPath() {
+  assert.strictEqual(
+    workOrderUploadUrl('example.png'),
+    '/api/work-orders/template-photos/example.png',
+  )
+}
+
+async function testWorkOrderRoutesExposeTemplatePhotoAndArchiveEndpoints() {
+  const routeSource = await fs.readFile(path.resolve(__dirname, '../src/routes/workOrders.ts'), 'utf8')
+
+  assert.ok(routeSource.includes("router.get('/template-photos/:filename'"))
+  assert.ok(routeSource.includes("router.post('/tickets/:id/archive'"))
+  assert.ok(routeSource.includes("router.delete('/tickets/:id/permanent'"))
+  assert.ok(routeSource.includes('archivedOnly'))
+  assert.ok(routeSource.includes('includeArchived'))
+}
+
+async function testWorkOrderSchemaDefinesTicketArchiveFields() {
+  const schemaSource = await fs.readFile(path.resolve(__dirname, '../prisma/schema.prisma'), 'utf8')
+
+  assert.ok(schemaSource.includes('archivedAt'))
+  assert.ok(schemaSource.includes('@map("archived_at")'))
+  assert.ok(schemaSource.includes('archivedById'))
+  assert.ok(schemaSource.includes('@map("archived_by_id")'))
+}
+
+async function testClientUsesApiSafeWorkOrderPhotoSrc() {
+  const apiSource = await fs.readFile(path.resolve(__dirname, '../../client/src/api/index.ts'), 'utf8')
+  const studentPanelSource = await fs.readFile(path.resolve(__dirname, '../../client/src/components/StudentWorkOrderPanel.tsx'), 'utf8')
+  const detailSource = await fs.readFile(path.resolve(__dirname, '../../client/src/components/WorkOrderTicketDetail.tsx'), 'utf8')
+
+  assert.ok(apiSource.includes('workOrderPhotoSrc'))
+  assert.ok(apiSource.includes('/api/work-orders/template-photos/'))
+  assert.ok(studentPanelSource.includes('workOrderPhotoSrc(selected.templatePhotoUrlSnapshot)'))
+  assert.ok(detailSource.includes('workOrderPhotoSrc(ticket.templatePhotoUrlSnapshot)'))
 }
 
 async function run() {
@@ -275,6 +313,10 @@ async function run() {
   await testStudentWorkOrderPanelShowsStudentVideos()
   await testPersistWorkOrderTemplateFileStoresVerifiedTypeExtension()
   await testPersistWorkOrderTemplateFileRejectsSpoofedNonImageUpload()
+  testWorkOrderUploadUrlUsesApiProxyPath()
+  await testWorkOrderRoutesExposeTemplatePhotoAndArchiveEndpoints()
+  await testWorkOrderSchemaDefinesTicketArchiveFields()
+  await testClientUsesApiSafeWorkOrderPhotoSrc()
   console.log('workOrderService tests passed')
 }
 

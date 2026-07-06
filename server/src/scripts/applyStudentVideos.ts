@@ -40,6 +40,19 @@ async function main() {
   }
 
   console.log('work_order_student_videos: table ready')
+
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE "work_order_tickets"
+    ADD COLUMN IF NOT EXISTS "archived_at" TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS "archived_by_id" TEXT
+  `)
+
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS "work_order_tickets_archived_at_idx"
+    ON "work_order_tickets"("archived_at")
+  `)
+
+  console.log('work_order_tickets: archive columns ready')
   await prisma.$disconnect()
 }
 

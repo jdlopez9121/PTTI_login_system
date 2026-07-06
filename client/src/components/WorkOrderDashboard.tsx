@@ -4,6 +4,7 @@ import {
   type WorkOrderStatus,
   type WorkOrderTemplate,
   type WorkOrderTicket,
+  getArchivedWorkOrderTickets,
   getWorkOrderNotifications,
   getWorkOrderTemplates,
   getWorkOrderTickets,
@@ -42,6 +43,7 @@ export default function WorkOrderDashboard({ onClose }: Props) {
   const [notifications, setNotifications] = useState<WorkOrderNotification[]>([])
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<WorkOrderStatus | ''>('')
+  const [showArchived, setShowArchived] = useState(false)
   const [showTemplates, setShowTemplates] = useState(false)
   const [showCreate, setShowCreate] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -53,7 +55,7 @@ export default function WorkOrderDashboard({ onClose }: Props) {
     try {
       const [nextTemplates, nextTickets, nextNotifications] = await Promise.all([
         getWorkOrderTemplates(),
-        getWorkOrderTickets(statusFilter),
+        showArchived ? getArchivedWorkOrderTickets(statusFilter) : getWorkOrderTickets(statusFilter),
         getWorkOrderNotifications(false),
       ])
       setTemplates(nextTemplates)
@@ -66,7 +68,7 @@ export default function WorkOrderDashboard({ onClose }: Props) {
     } finally {
       setLoading(false)
     }
-  }, [selectedTicketId, statusFilter])
+  }, [selectedTicketId, showArchived, statusFilter])
 
   useEffect(() => { loadData() }, [loadData])
 
@@ -82,6 +84,14 @@ export default function WorkOrderDashboard({ onClose }: Props) {
       return exists ? prev.map((item) => item.id === ticket.id ? ticket : item) : [ticket, ...prev]
     })
     setSelectedTicketId(ticket.id)
+  }
+
+  const removeTicket = (ticket?: WorkOrderTicket) => {
+    setTickets((prev) => {
+      const next = ticket ? prev.filter((item) => item.id !== ticket.id) : prev.filter((item) => item.id !== selectedTicketId)
+      setSelectedTicketId(next[0]?.id ?? null)
+      return next
+    })
   }
 
   const markRead = async (notification: WorkOrderNotification) => {
@@ -113,6 +123,9 @@ export default function WorkOrderDashboard({ onClose }: Props) {
           <button className="btn btn-primary" onClick={() => setShowCreate(true)}>+ New Work Order</button>
           <button className="btn btn-secondary" onClick={() => setShowTemplates((v) => !v)}>{showTemplates ? 'Hide Templates' : 'Manage Templates'}</button>
           <button className="btn btn-secondary" onClick={loadData} disabled={loading}>{loading ? 'Loading…' : '↻ Refresh'}</button>
+          <button className="btn btn-secondary" onClick={() => { setSelectedTicketId(null); setShowArchived((v) => !v) }}>
+            {showArchived ? 'Show Active' : 'Show Archived'}
+          </button>
           <div className="form-group" style={{ marginBottom: 0, marginLeft: 'auto', minWidth: 150 }}>
             <label style={{ fontSize: '0.75rem' }}>Status</label>
             <select className="input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as WorkOrderStatus | '')}>
@@ -131,7 +144,7 @@ export default function WorkOrderDashboard({ onClose }: Props) {
               <h3>Tickets</h3>
             </div>
             {loading ? <p style={{ padding: '1rem', color: 'var(--gray-400)' }}>Loading…</p> : tickets.length === 0 ? (
-              <p style={{ padding: '1rem', color: 'var(--gray-500)' }}>No work orders match this filter.</p>
+              <p style={{ padding: '1rem', color: 'var(--gray-500)' }}>No {showArchived ? 'archived ' : ''}work orders match this filter.</p>
             ) : tickets.map((ticket) => (
               <button
                 key={ticket.id}
@@ -157,7 +170,7 @@ export default function WorkOrderDashboard({ onClose }: Props) {
               <WorkOrderTicketDetail
                 ticketId={selectedTicket.id}
                 onChanged={(ticket) => { mergeTicket(ticket); loadData() }}
-                onDeleted={(ticket) => { mergeTicket(ticket); loadData() }}
+                onDeleted={(ticket) => { removeTicket(ticket); loadData() }}
               />
             ) : <p style={{ color: 'var(--gray-500)' }}>Select or create a ticket.</p>}
           </section>
