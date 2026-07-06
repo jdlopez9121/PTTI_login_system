@@ -6,6 +6,7 @@ import prisma from '../lib/prisma'
 import { requireAuth } from '../middleware/requireAuth'
 import {
   DEFAULT_WORK_ORDER_TEMPLATE,
+  DEFAULT_WORK_ORDER_TEMPLATE_FALLBACK_PNG,
   buildStudentAssigneeLookup,
   buildStudentTicketSelect,
   buildTicketCreateData,
@@ -19,6 +20,7 @@ const router = Router()
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } })
 const VALID_STATUSES = new Set(['open', 'assigned', 'in_progress', 'submitted_completed', 'completed', 'cancelled'])
 const INVALID_TEMPLATE_PHOTO_ERROR = 'photo must be a PNG, JPEG, WebP, or GIF image'
+let workOrderArchiveColumnsReady: Promise<void> | null = null
 
 function sendTemplateUploadErrorIfSafe(err: unknown, res: Response): boolean {
   if (err instanceof Error && err.message === INVALID_TEMPLATE_PHOTO_ERROR) {
@@ -34,11 +36,22 @@ async function ensureDefaultTemplate() {
   })
   if (existing) return existing
 
-  const stored = await persistWorkOrderTemplateFile({
-    sourcePath: DEFAULT_WORK_ORDER_TEMPLATE.sourcePath,
-    originalFilename: DEFAULT_WORK_ORDER_TEMPLATE.originalFilename,
-    mimeType: DEFAULT_WORK_ORDER_TEMPLATE.mimeType,
-  })
+  let stored: Awaited<ReturnType<typeof persistWorkOrderTemplateFile>>
+  try {
+    stored = await persistWorkOrderTemplateFile({
+      sourcePath: DEFAULT_WORK_ORDER_TEMPLATE.sourcePath,
+      originalFilename: DEFAULT_WORK_ORDER_TEMPLATE.originalFilename,
+      mimeType: DEFAULT_WORK_ORDER_TEMPLATE.mimeType,
+    })
+  } catch (err: any) {
+    if (err?.code !== 'ENOENT') throw err
+    console.warn('[work-orders] default template image missing; using fallback image')
+    stored = await persistWorkOrderTemplateFile({
+      buffer: DEFAULT_WORK_ORDER_TEMPLATE_FALLBACK_PNG,
+      originalFilename: DEFAULT_WORK_ORDER_TEMPLATE.originalFilename,
+      mimeType: DEFAULT_WORK_ORDER_TEMPLATE.mimeType,
+    })
+  }
 
   return prisma.workOrderTemplate.create({
     data: {
@@ -52,6 +65,23 @@ async function ensureDefaultTemplate() {
       originalFilename: stored.originalFilename,
     },
   })
+}
+
+function ensureWorkOrderArchiveColumns(): Promise<void> {
+  if (!workOrderArchiveColumnsReady) {
+    workOrderArchiveColumnsReady = (async () => {
+      await prisma.$executeRawUnsafe(`
+        ALTER TABLE "work_order_tickets"
+        ADD COLUMN IF NOT EXISTS "archived_at" TIMESTAMPTZ,
+        ADD COLUMN IF NOT EXISTS "archived_by_id" TEXT
+      `)
+      await prisma.$executeRawUnsafe(`
+        CREATE INDEX IF NOT EXISTS "work_order_tickets_archived_at_idx"
+        ON "work_order_tickets"("archived_at")
+      `)
+    })()
+  }
+  return workOrderArchiveColumnsReady
 }
 
 function templateSelect() {
@@ -434,6 +464,7 @@ router.get('/assignees', requireAuth, async (req: Request, res: Response, next: 
 // ---------------------------------------------------------------------------
 router.get('/tickets', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
+    await ensureWorkOrderArchiveColumns()
     const status = String(req.query.status ?? '').trim()
     const includeArchived = String(req.query.includeArchived ?? '') === 'true'
     const archivedOnly = String(req.query.archivedOnly ?? '') === 'true'
@@ -455,6 +486,7 @@ router.get('/tickets', requireAuth, async (req: Request, res: Response, next: Ne
 
 router.post('/tickets', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
+    await ensureWorkOrderArchiveColumns()
     const { templateId, title, issueDescription, assigneeStudentId, assigneeStudentNumber, studentId, assigneeTeacherId } = req.body as {
       templateId: string; title: string; issueDescription: string; assigneeStudentId?: string; assigneeStudentNumber?: string; studentId?: string; assigneeTeacherId?: string
     }
@@ -494,6 +526,7 @@ router.post('/tickets', requireAuth, async (req: Request, res: Response, next: N
 
 router.get('/tickets/:id', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
+    await ensureWorkOrderArchiveColumns()
     const ticket = await prisma.workOrderTicket.findUnique({ where: { id: req.params.id }, include: ticketInclude })
     if (!ticket) { res.status(404).json({ success: false, error: 'Work order not found' }); return }
     res.json({ success: true, data: ticket })
@@ -502,6 +535,7 @@ router.get('/tickets/:id', requireAuth, async (req: Request, res: Response, next
 
 router.put('/tickets/:id', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
+    await ensureWorkOrderArchiveColumns()
     const { title, issueDescription, workPerformed, status, assigneeStudentId, assigneeStudentNumber, studentId, assigneeTeacherId } = req.body as {
       title?: string; issueDescription?: string; workPerformed?: string; status?: string; assigneeStudentId?: string | null; assigneeStudentNumber?: string | null; studentId?: string | null; assigneeTeacherId?: string | null
     }
@@ -544,6 +578,7 @@ router.put('/tickets/:id', requireAuth, async (req: Request, res: Response, next
 
 router.post('/tickets/:id/archive', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
+    await ensureWorkOrderArchiveColumns()
     const existing = await prisma.workOrderTicket.findUnique({
       where: { id: req.params.id },
       select: { id: true, status: true, archivedAt: true },
@@ -571,6 +606,7 @@ router.post('/tickets/:id/archive', requireAuth, async (req: Request, res: Respo
 
 router.delete('/tickets/:id', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
+    await ensureWorkOrderArchiveColumns()
     const ticket = await prisma.workOrderTicket.update({ where: { id: req.params.id }, data: { status: 'cancelled' }, include: ticketInclude })
     res.json({ success: true, data: ticket })
   } catch (err) { next(err) }
@@ -578,6 +614,7 @@ router.delete('/tickets/:id', requireAuth, async (req: Request, res: Response, n
 
 router.delete('/tickets/:id/permanent', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
+    await ensureWorkOrderArchiveColumns()
     const existing = await prisma.workOrderTicket.findUnique({
       where: { id: req.params.id },
       select: { id: true, status: true, archivedAt: true },
@@ -647,6 +684,7 @@ router.post('/notifications/:id/read', requireAuth, async (req: Request, res: Re
 // ---------------------------------------------------------------------------
 router.get('/student/:studentId/tickets', async (req: Request, res: Response, next: NextFunction) => {
   try {
+    await ensureWorkOrderArchiveColumns()
     const student = await prisma.student.findFirst({ where: { studentId: req.params.studentId, isActive: true }, select: { id: true } })
     if (!student) { res.status(404).json({ success: false, error: 'Student not found' }); return }
     const tickets = await prisma.workOrderTicket.findMany({
@@ -660,6 +698,7 @@ router.get('/student/:studentId/tickets', async (req: Request, res: Response, ne
 
 router.get('/student/:studentId/tickets/:ticketId', async (req: Request, res: Response, next: NextFunction) => {
   try {
+    await ensureWorkOrderArchiveColumns()
     const student = await prisma.student.findFirst({ where: { studentId: req.params.studentId, isActive: true }, select: { id: true } })
     if (!student) { res.status(404).json({ success: false, error: 'Student not found' }); return }
     const ticket = await prisma.workOrderTicket.findFirst({
@@ -673,6 +712,7 @@ router.get('/student/:studentId/tickets/:ticketId', async (req: Request, res: Re
 
 router.patch('/student/:studentId/tickets/:ticketId/work-performed', async (req: Request, res: Response, next: NextFunction) => {
   try {
+    await ensureWorkOrderArchiveColumns()
     const student = await prisma.student.findFirst({ where: { studentId: req.params.studentId, isActive: true }, select: { id: true } })
     if (!student) { res.status(404).json({ success: false, error: 'Student not found' }); return }
     const workPerformed = String(req.body.workPerformed ?? '').trim()
@@ -688,6 +728,7 @@ router.patch('/student/:studentId/tickets/:ticketId/work-performed', async (req:
 
 router.post('/student/:studentId/tickets/:ticketId/submit-completed', async (req: Request, res: Response, next: NextFunction) => {
   try {
+    await ensureWorkOrderArchiveColumns()
     const student = await prisma.student.findFirst({ where: { studentId: req.params.studentId, isActive: true }, select: { id: true, fullName: true } })
     if (!student) { res.status(404).json({ success: false, error: 'Student not found' }); return }
     const ticket = await prisma.workOrderTicket.findFirst({

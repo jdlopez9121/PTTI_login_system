@@ -3,9 +3,11 @@ import fs from 'fs/promises'
 import os from 'os'
 import path from 'path'
 import {
+  DEFAULT_WORK_ORDER_TEMPLATE_FALLBACK_PNG,
   buildStudentAssigneeLookup,
   buildStudentTicketSelect,
   buildTicketCreateData,
+  detectWorkOrderImageType,
   normalizeWorkOrderWalkthroughVideoUrl,
   persistWorkOrderTemplateFile,
   validateOneAssignee,
@@ -272,6 +274,7 @@ async function testWorkOrderRoutesExposeTemplatePhotoAndArchiveEndpoints() {
   assert.ok(routeSource.includes("router.get('/template-photos/:filename'"))
   assert.ok(routeSource.includes("router.post('/tickets/:id/archive'"))
   assert.ok(routeSource.includes("router.delete('/tickets/:id/permanent'"))
+  assert.ok(routeSource.includes('ensureWorkOrderArchiveColumns'))
   assert.ok(routeSource.includes('archivedOnly'))
   assert.ok(routeSource.includes('includeArchived'))
 }
@@ -296,6 +299,11 @@ async function testClientUsesApiSafeWorkOrderPhotoSrc() {
   assert.ok(detailSource.includes('workOrderPhotoSrc(ticket.templatePhotoUrlSnapshot)'))
 }
 
+function testDefaultTemplateFallbackIsValidImage() {
+  const imageType = detectWorkOrderImageType(DEFAULT_WORK_ORDER_TEMPLATE_FALLBACK_PNG)
+  assert.strictEqual(imageType?.mimeType, 'image/png')
+}
+
 async function run() {
   testValidateOneAssigneeRequiresExactlyOneAssignee()
   testBuildTicketCreateDataSnapshotsTemplateFields()
@@ -317,6 +325,7 @@ async function run() {
   await testWorkOrderRoutesExposeTemplatePhotoAndArchiveEndpoints()
   await testWorkOrderSchemaDefinesTicketArchiveFields()
   await testClientUsesApiSafeWorkOrderPhotoSrc()
+  testDefaultTemplateFallbackIsValidImage()
   console.log('workOrderService tests passed')
 }
 

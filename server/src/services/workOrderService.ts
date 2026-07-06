@@ -277,3 +277,8 @@ export const DEFAULT_WORK_ORDER_TEMPLATE = {
   originalFilename: 'workOrderExample.png',
   mimeType: 'image/png',
 }
+
+export const DEFAULT_WORK_ORDER_TEMPLATE_FALLBACK_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=',
+  'base64',
+)
