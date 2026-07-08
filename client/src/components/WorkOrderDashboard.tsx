@@ -17,7 +17,10 @@ import WorkOrderWalkthroughVideosPanel from './WorkOrderWalkthroughVideosPanel'
 import StudentWalkthroughVideosPanel from './StudentWalkthroughVideosPanel'
 import { formatDisplayName } from '../utils/formatName'
 
-type Props = { onClose: () => void }
+type Props = {
+  assigneeFilter?: { date?: string; shift?: string }
+  onClose: () => void
+}
 
 const STATUS_FILTERS: { value: WorkOrderStatus | ''; label: string }[] = [
   { value: '', label: 'All' },
@@ -37,7 +40,7 @@ function assigneeName(ticket: WorkOrderTicket) {
   return 'Unassigned'
 }
 
-export default function WorkOrderDashboard({ onClose }: Props) {
+export default function WorkOrderDashboard({ assigneeFilter, onClose }: Props) {
   const [templates, setTemplates] = useState<WorkOrderTemplate[]>([])
   const [tickets, setTickets] = useState<WorkOrderTicket[]>([])
   const [notifications, setNotifications] = useState<WorkOrderNotification[]>([])
@@ -84,6 +87,15 @@ export default function WorkOrderDashboard({ onClose }: Props) {
       return exists ? prev.map((item) => item.id === ticket.id ? ticket : item) : [ticket, ...prev]
     })
     setSelectedTicketId(ticket.id)
+  }
+
+  const mergeTickets = (nextTickets: WorkOrderTicket[]) => {
+    if (nextTickets.length === 0) return
+    setTickets((prev) => {
+      const nextIds = new Set(nextTickets.map((ticket) => ticket.id))
+      return [...nextTickets, ...prev.filter((ticket) => !nextIds.has(ticket.id))]
+    })
+    setSelectedTicketId(nextTickets[0].id)
   }
 
   const removeTicket = (ticket?: WorkOrderTicket) => {
@@ -203,8 +215,9 @@ export default function WorkOrderDashboard({ onClose }: Props) {
         {showCreate && (
           <WorkOrderCreateModal
             templates={templates}
+            assigneeFilter={assigneeFilter}
             onClose={() => setShowCreate(false)}
-            onCreated={(ticket) => { setShowCreate(false); mergeTicket(ticket); loadData() }}
+            onCreated={(createdTickets) => { setShowCreate(false); mergeTickets(createdTickets); loadData() }}
           />
         )}
       </div>

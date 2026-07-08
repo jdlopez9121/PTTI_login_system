@@ -191,6 +191,11 @@ export type WorkOrderAssignees = {
   students: { id: string; studentId: string; fullName: string }[]
   teachers: { id: string; name: string; email: string }[]
 }
+export type WorkOrderAssigneeSearchOptions = {
+  currentClassOnly?: boolean
+  date?: string
+  shift?: string
+}
 export type WorkOrderMessage = {
   id: string
   body: string
@@ -281,8 +286,15 @@ export const updateWorkOrderTemplate = (id: string, data: { name?: string; versi
 }
 export const deleteWorkOrderTemplate = (id: string) =>
   request<{ message: string }>(`/work-orders/templates/${id}`, { method: 'DELETE' })
-export const searchWorkOrderAssignees = (q = '') =>
-  request<WorkOrderAssignees>(`/work-orders/assignees${q ? `?q=${encodeURIComponent(q)}` : ''}`)
+export const searchWorkOrderAssignees = (q = '', options: WorkOrderAssigneeSearchOptions = {}) => {
+  const params = new URLSearchParams()
+  if (q) params.set('q', q)
+  if (options.currentClassOnly) params.set('currentClassOnly', 'true')
+  if (options.date) params.set('date', options.date)
+  if (options.shift) params.set('shift', options.shift)
+  const qs = params.toString()
+  return request<WorkOrderAssignees>(`/work-orders/assignees${qs ? `?${qs}` : ''}`)
+}
 export const getWorkOrderTickets = (status?: WorkOrderStatus | '') =>
   request<WorkOrderTicket[]>(`/work-orders/tickets${status ? `?status=${status}` : ''}`)
 export const getArchivedWorkOrderTickets = (status?: WorkOrderStatus | '') => {
@@ -294,6 +306,9 @@ export const createWorkOrderTicket = (data: {
   templateId: string; title: string; issueDescription: string
   assigneeStudentId?: string; assigneeTeacherId?: string
 }) => request<WorkOrderTicket>('/work-orders/tickets', { method: 'POST', body: JSON.stringify(data) })
+export const createWorkOrderTicketsBatch = (data: {
+  templateId: string; title: string; issueDescription: string; assigneeStudentIds: string[]
+}) => request<{ tickets: WorkOrderTicket[]; created: number }>('/work-orders/tickets/batch', { method: 'POST', body: JSON.stringify(data) })
 export const getWorkOrderTicket = (id: string) => request<WorkOrderTicket>(`/work-orders/tickets/${id}`)
 export const updateWorkOrderTicket = (id: string, data: Partial<{
   title: string; issueDescription: string; workPerformed: string; status: WorkOrderStatus
@@ -431,6 +446,8 @@ export const saveGradeEntry = (data: { templateId: string; studentDbId: string; 
   request('/grades/entries', { method: 'POST', body: JSON.stringify(data) })
 export const verifyProjectEntry = (entryId: string, score: number) =>
   request(`/grades/entries/${entryId}/verify`, { method: 'POST', body: JSON.stringify({ score }) })
+export const autoVerifySubmittedProjects = (data: { subject: string; cohortMonth: number; cohortYear: number; studentDbId?: string; studentDbIds?: string[] }) =>
+  request<{ verifiedCount: number }>('/grades/entries/auto-verify', { method: 'POST', body: JSON.stringify(data) })
 
 // Dashboard
 export const getGradeDashboard = (subject: string, cohortMonth: number, cohortYear: number) =>

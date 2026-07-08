@@ -1,9 +1,11 @@
 import { Router, Request, Response, NextFunction } from 'express'
 import fs from 'fs/promises'
 import multer from 'multer'
-import type { Prisma } from '@prisma/client'
+import type { Prisma, Shift } from '@prisma/client'
 import prisma from '../lib/prisma'
 import { requireAuth } from '../middleware/requireAuth'
+import { classifyByTime } from '../services/shiftService'
+import { getTheoreticalHeadcount } from '../services/headcountService'
 import {
   DEFAULT_WORK_ORDER_TEMPLATE,
   DEFAULT_WORK_ORDER_TEMPLATE_FALLBACK_PNG,
@@ -19,6 +21,7 @@ import {
 const router = Router()
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } })
 const VALID_STATUSES = new Set(['open', 'assigned', 'in_progress', 'submitted_completed', 'completed', 'cancelled'])
+const VALID_SHIFTS: Shift[] = ['morning', 'afternoon', 'evening', 'night']
 const INVALID_TEMPLATE_PHOTO_ERROR = 'photo must be a PNG, JPEG, WebP, or GIF image'
 let workOrderArchiveColumnsReady: Promise<void> | null = null
 
@@ -160,6 +163,30 @@ function studentVideoSelect() {
     createdAt: true,
     updatedAt: true,
   }
+}
+
+async function getCurrentClassStudentIds(req: Request): Promise<Set<string>> {
+  const teacher = await prisma.teacher.findUnique({ where: { id: req.teacher!.teacherId } })
+  if (!teacher) return new Set()
+
+  let targetDate = new Date()
+  if (req.query.date) {
+    targetDate = new Date(String(req.query.date))
+    if (isNaN(targetDate.getTime())) return new Set()
+  }
+
+  const subjects = [teacher.subject1, teacher.subject2, teacher.subject3].filter((subject): subject is string => Boolean(subject))
+  const shiftQuery = String(req.query.shift ?? '').trim()
+  const showAll = shiftQuery === 'all'
+  const targetShift = VALID_SHIFTS.includes(shiftQuery as Shift)
+    ? shiftQuery as Shift
+    : classifyByTime(new Date()) ?? teacher.shift
+
+  const headcount = showAll
+    ? await Promise.all(VALID_SHIFTS.map((shift) => getTheoreticalHeadcount(subjects, shift, targetDate)))
+    : [await getTheoreticalHeadcount(subjects, targetShift, targetDate)]
+
+  return new Set(headcount.flatMap((result) => result.students.map((student) => student.studentId)))
 }
 
 // ---------------------------------------------------------------------------
@@ -441,9 +468,16 @@ router.delete('/templates/:id', requireAuth, async (req: Request, res: Response,
 router.get('/assignees', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const q = String(req.query.q ?? '').trim()
+    const currentClassOnly = String(req.query.currentClassOnly ?? '') === 'true'
+    const currentClassStudentIds = currentClassOnly ? await getCurrentClassStudentIds(req) : null
+    const studentWhere: Prisma.StudentWhereInput = {
+      isActive: true,
+      ...(currentClassStudentIds ? { studentId: { in: Array.from(currentClassStudentIds) } } : {}),
+      ...(q ? { OR: [{ studentId: { contains: q, mode: 'insensitive' } }, { fullName: { contains: q, mode: 'insensitive' } }] } : {}),
+    }
     const [students, teachers] = await Promise.all([
       prisma.student.findMany({
-        where: q ? { isActive: true, OR: [{ studentId: { contains: q, mode: 'insensitive' } }, { fullName: { contains: q, mode: 'insensitive' } }] } : { isActive: true },
+        where: studentWhere,
         select: { id: true, studentId: true, fullName: true },
         take: 20,
         orderBy: { fullName: 'asc' },
@@ -521,6 +555,61 @@ router.post('/tickets', requireAuth, async (req: Request, res: Response, next: N
       include: ticketInclude,
     })
     res.status(201).json({ success: true, data: ticket })
+  } catch (err) { next(err) }
+})
+
+router.post('/tickets/batch', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    await ensureWorkOrderArchiveColumns()
+    const { templateId, title, issueDescription, assigneeStudentIds } = req.body as {
+      templateId: string; title: string; issueDescription: string; assigneeStudentIds?: string[]
+    }
+    const studentIds = Array.from(new Set((assigneeStudentIds ?? []).map((id) => String(id).trim()).filter(Boolean)))
+
+    if (!templateId || !title?.trim() || !issueDescription?.trim()) {
+      res.status(400).json({ success: false, error: 'templateId, title, and issueDescription are required' })
+      return
+    }
+    if (studentIds.length === 0) {
+      res.status(400).json({ success: false, error: 'Choose at least one student assignee' })
+      return
+    }
+    if (studentIds.length > 100) {
+      res.status(400).json({ success: false, error: 'Batch assignment is limited to 100 students at a time' })
+      return
+    }
+
+    const [template, students] = await Promise.all([
+      prisma.workOrderTemplate.findFirst({ where: { id: templateId, isActive: true } }),
+      prisma.student.findMany({
+        where: { id: { in: studentIds }, isActive: true },
+        select: { id: true },
+      }),
+    ])
+    if (!template) { res.status(404).json({ success: false, error: 'Template not found' }); return }
+    if (students.length !== studentIds.length) {
+      res.status(404).json({ success: false, error: 'One or more student assignees were not found' })
+      return
+    }
+
+    const now = new Date()
+    const tickets = await prisma.$transaction(
+      students.map((student) =>
+        prisma.workOrderTicket.create({
+          data: buildTicketCreateData({
+            createdById: req.teacher!.teacherId,
+            title: title.trim(),
+            issueDescription: issueDescription.trim(),
+            template,
+            assignee: { ok: true, assigneeType: 'student', assigneeStudentId: student.id, assigneeTeacherId: null },
+            now,
+          }) as any,
+          include: ticketInclude,
+        })
+      )
+    )
+
+    res.status(201).json({ success: true, data: { tickets, created: tickets.length } })
   } catch (err) { next(err) }
 })
 

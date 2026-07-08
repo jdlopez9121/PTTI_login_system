@@ -293,7 +293,10 @@ export default function TeacherDashboard() {
       )}
 
       {showWorkOrders && (
-        <WorkOrderDashboard onClose={() => setShowWorkOrders(false)} />
+        <WorkOrderDashboard
+          assigneeFilter={{ date: data?.targetDate ?? filterDate, shift: data?.currentShift ?? filterShift }}
+          onClose={() => setShowWorkOrders(false)}
+        />
       )}
 
     </div>

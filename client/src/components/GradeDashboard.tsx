@@ -9,6 +9,7 @@ import {
   deleteTemplate,
   saveGradeEntry,
   verifyProjectEntry,
+  autoVerifySubmittedProjects,
   previewQuizGradeImport,
   applyQuizGradeImport,
   type QuizGradeImportPreview,
@@ -24,6 +25,11 @@ interface Props {
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
+type StudentGradeRow = GradeDashboardData['students'][number]
+
+const getPendingProjectEntries = (student: StudentGradeRow) =>
+  student.project.entries.filter((entry) => Boolean(entry.entryId && entry.submittedAt && !entry.verifiedAt))
+
 export default function GradeDashboard({ teacherSubjects, onClose }: Props) {
   const now = new Date()
   const [subject, setSubject] = useState(teacherSubjects[0] ?? '')
@@ -36,6 +42,7 @@ export default function GradeDashboard({ teacherSubjects, onClose }: Props) {
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
   const [showTemplateManager, setShowTemplateManager] = useState(false)
   const [savingEntry, setSavingEntry] = useState<string | null>(null)
+  const [autoVerifying, setAutoVerifying] = useState<string | null>(null)
   const [scoreInputs, setScoreInputs] = useState<Record<string, string>>({})
   const [newTemplate, setNewTemplate] = useState<{ type: GradeType; name: string; description: string }>({ type: 'quiz', name: '', description: '' })
   const [addingTemplate, setAddingTemplate] = useState(false)
@@ -111,6 +118,26 @@ export default function GradeDashboard({ teacherSubjects, onClose }: Props) {
     }
   }
 
+  const handleAutoVerifySubmitted = async (studentDbId?: string) => {
+    const scopeKey = studentDbId ? `student_${studentDbId}` : 'class'
+    setAutoVerifying(scopeKey)
+    setError('')
+    try {
+      await autoVerifySubmittedProjects({
+        subject,
+        cohortMonth,
+        cohortYear,
+        ...(studentDbId ? { studentDbId } : {}),
+        ...(!studentDbId ? { studentDbIds: dashboard?.students.map((student) => student.dbId) ?? [] } : {}),
+      })
+      await loadData()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to auto-verify submissions')
+    } finally {
+      setAutoVerifying(null)
+    }
+  }
+
   const handleAddTemplate = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newTemplate.name.trim()) return
@@ -171,6 +198,8 @@ export default function GradeDashboard({ teacherSubjects, onClose }: Props) {
 
   const quizTemplates = templates.filter((t) => t.type === 'quiz')
   const projectTemplates = templates.filter((t) => t.type === 'project')
+  const pendingSubmissionCount = dashboard?.students.reduce((count, student) => count + getPendingProjectEntries(student).length, 0) ?? 0
+  const pendingStudentCount = dashboard?.students.filter((student) => getPendingProjectEntries(student).length > 0).length ?? 0
 
   return (
     <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -179,7 +208,14 @@ export default function GradeDashboard({ teacherSubjects, onClose }: Props) {
         style={{ width: 'min(1000px, 95vw)', maxHeight: '90vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
       >
         <div className="modal-header">
-          <h2>Grade Dashboard</h2>
+          <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            Grade Dashboard
+            {pendingSubmissionCount > 0 && (
+              <span className="badge badge-red" title="Submitted assignments waiting for verification">
+                ! {pendingSubmissionCount} pending
+              </span>
+            )}
+          </h2>
           <button className="modal-close" onClick={onClose}>×</button>
         </div>
 
@@ -218,6 +254,19 @@ export default function GradeDashboard({ teacherSubjects, onClose }: Props) {
           >
             {showTemplateManager ? 'Hide Templates' : 'Manage Templates'}
           </button>
+          <button
+            className="btn btn-primary"
+            onClick={() => handleAutoVerifySubmitted()}
+            disabled={loading || autoVerifying !== null || pendingSubmissionCount === 0}
+            title={pendingSubmissionCount === 0 ? 'No submitted assignments need verification' : `Verify ${pendingSubmissionCount} submitted assignment${pendingSubmissionCount !== 1 ? 's' : ''} at 100%`}
+          >
+            {autoVerifying === 'class' ? 'Verifying...' : `Auto-Verify Class${pendingSubmissionCount > 0 ? ` (${pendingSubmissionCount})` : ''}`}
+          </button>
+          {pendingSubmissionCount > 0 && (
+            <span className="badge badge-red" title={`${pendingStudentCount} student${pendingStudentCount !== 1 ? 's have' : ' has'} submissions waiting`}>
+              ! {pendingStudentCount} student{pendingStudentCount !== 1 ? 's' : ''}
+            </span>
+          )}
         </div>
 
         {error && <div className="alert alert-error" style={{ marginBottom: '0.75rem' }}>{error}</div>}
@@ -350,7 +399,9 @@ export default function GradeDashboard({ teacherSubjects, onClose }: Props) {
                 </tr>
               </thead>
               <tbody>
-                {dashboard.students.map((student) => [
+                {dashboard.students.map((student) => {
+                  const pendingProjectCount = getPendingProjectEntries(student).length
+                  return [
                   <tr
                     key={student.dbId}
                     style={{ cursor: 'pointer' }}
@@ -360,7 +411,16 @@ export default function GradeDashboard({ teacherSubjects, onClose }: Props) {
                       {expandedRows.has(student.dbId) ? '▾' : '▸'}
                     </td>
                     <td>{student.studentId}</td>
-                    <td>{formatDisplayName(student.fullName)}</td>
+                    <td>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                        {formatDisplayName(student.fullName)}
+                        {pendingProjectCount > 0 && (
+                          <span className="badge badge-red" title="Submitted assignments waiting for verification">
+                            ! {pendingProjectCount}
+                          </span>
+                        )}
+                      </span>
+                    </td>
                     <td>
                       <span className={`badge ${student.attendance.percent >= 80 ? 'badge-green' : student.attendance.percent >= 60 ? 'badge-blue' : 'badge-gray'}`}>
                         {student.attendance.percent}% ({student.attendance.signIns}/{student.attendance.expectedDays})
@@ -421,7 +481,23 @@ export default function GradeDashboard({ teacherSubjects, onClose }: Props) {
 
                           {/* Project scores */}
                           <div>
-                            <p style={{ fontSize: '0.78rem', fontWeight: 600, marginBottom: '0.4rem' }}>Projects</p>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
+                              <p style={{ fontSize: '0.78rem', fontWeight: 600 }}>Projects</p>
+                              {pendingProjectCount > 0 && (
+                                <button
+                                  className="btn btn-primary"
+                                  style={{ padding: '0.2rem 0.6rem', fontSize: '0.78rem' }}
+                                  disabled={autoVerifying !== null}
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleAutoVerifySubmitted(student.dbId)
+                                  }}
+                                  title={`Verify ${pendingProjectCount} submitted assignment${pendingProjectCount !== 1 ? 's' : ''} at 100% for this student`}
+                                >
+                                  {autoVerifying === `student_${student.dbId}` ? 'Verifying...' : `Auto-Verify Student (${pendingProjectCount})`}
+                                </button>
+                              )}
+                            </div>
                             {student.project.entries.length === 0 ? (
                               <p style={{ fontSize: '0.8rem', color: 'var(--gray-400)' }}>No projects configured</p>
                             ) : student.project.entries.map((entry) => {
@@ -449,7 +525,7 @@ export default function GradeDashboard({ teacherSubjects, onClose }: Props) {
                                         <button
                                           className="btn btn-primary"
                                           style={{ padding: '0.2rem 0.6rem', fontSize: '0.78rem' }}
-                                          disabled={savingEntry === key}
+                                          disabled={savingEntry === key || autoVerifying !== null}
                                           onClick={(e) => {
                                             e.stopPropagation()
                                             if (entry.entryId) handleVerify(entry.entryId, entry.templateId, student.dbId)
@@ -470,7 +546,8 @@ export default function GradeDashboard({ teacherSubjects, onClose }: Props) {
                       </td>
                     </tr>
                   ),
-                ])}
+                  ]
+                })}
               </tbody>
             </table>
           )}

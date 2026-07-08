@@ -1,6 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express'
 import multer from 'multer'
-import { GradeType } from '@prisma/client'
+import { GradeType, Prisma } from '@prisma/client'
 import prisma from '../lib/prisma'
 import { requireAuth } from '../middleware/requireAuth'
 import { getProgramMonth } from '../services/headcountService'
@@ -224,6 +224,57 @@ router.post('/entries/:id/verify', requireAuth, async (req: Request, res: Respon
       data: { score, verifiedAt: new Date(), verifiedById: req.teacher!.teacherId },
     })
     res.json({ success: true, data: entry })
+  } catch (err) { next(err) }
+})
+
+// POST /api/grades/entries/auto-verify - teacher verifies submitted projects at 100%
+router.post('/entries/auto-verify', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { subject, studentDbId, studentDbIds, cohortMonth, cohortYear } = req.body as {
+      subject: string; studentDbId?: string; studentDbIds?: string[]; cohortMonth: number; cohortYear: number
+    }
+    const normalizedSubject = String(subject ?? '').trim()
+    const parsedCohortMonth = Number(cohortMonth)
+    const parsedCohortYear = Number(cohortYear)
+    const normalizedStudentDbId = studentDbId ? String(studentDbId).trim() : ''
+    const normalizedStudentDbIds = Array.isArray(studentDbIds)
+      ? studentDbIds.map((id) => String(id).trim()).filter(Boolean)
+      : []
+
+    if (!normalizedSubject || !Number.isInteger(parsedCohortMonth) || !Number.isInteger(parsedCohortYear)) {
+      res.status(400).json({ success: false, error: 'subject, cohortMonth, and cohortYear required' })
+      return
+    }
+
+    const access = await ensureTeacherCanAccessSubject(req.teacher!.teacherId, normalizedSubject)
+    if (!access.ok) {
+      res.status(access.status).json({ success: false, error: access.error })
+      return
+    }
+    if (!normalizedStudentDbId && Array.isArray(studentDbIds) && normalizedStudentDbIds.length === 0) {
+      res.json({ success: true, data: { verifiedCount: 0 } })
+      return
+    }
+
+    const where: Prisma.GradeEntryWhereInput = {
+      cohortMonth: parsedCohortMonth,
+      cohortYear: parsedCohortYear,
+      submittedAt: { not: null },
+      verifiedAt: null,
+      template: { subject: normalizedSubject, type: 'project', isActive: true },
+      ...(normalizedStudentDbId
+        ? { studentId: normalizedStudentDbId }
+        : normalizedStudentDbIds.length > 0
+          ? { studentId: { in: normalizedStudentDbIds } }
+          : {}),
+    }
+
+    const result = await prisma.gradeEntry.updateMany({
+      where,
+      data: { score: 100, verifiedAt: new Date(), verifiedById: req.teacher!.teacherId },
+    })
+
+    res.json({ success: true, data: { verifiedCount: result.count } })
   } catch (err) { next(err) }
 })
 
