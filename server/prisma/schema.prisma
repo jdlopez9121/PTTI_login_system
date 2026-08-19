@@ -270,6 +270,18 @@ model WorkOrderTemplate {
   @@map("work_order_templates")
 }
 
+model WorkOrderImage {
+  filename         String   @id
+  data             Bytes
+  mimeType         String   @map("mime_type")
+  sizeBytes        Int      @map("size_bytes")
+  originalFilename String   @map("original_filename")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@map("work_order_images")
+}
+
 model WorkOrderTicket {
   id                               String                  @id @default(uuid())
   templateId                       String                  @map("template_id")

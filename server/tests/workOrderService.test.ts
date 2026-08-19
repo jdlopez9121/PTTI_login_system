@@ -241,6 +241,8 @@ async function testPersistWorkOrderTemplateFileStoresVerifiedTypeExtension() {
 
   assert.strictEqual(stored.mimeType, 'image/png')
   assert.strictEqual(stored.originalFilename, 'dangerous-template.html')
+  assert.strictEqual(stored.filename, path.basename(stored.storedPath))
+  assert.strictEqual(stored.bytes.toString('hex'), pngBytes.toString('hex'))
   assert.strictEqual(path.extname(stored.storedPath), '.png')
   assert.match(path.basename(stored.storedPath), /^\d+-dangerous-template\.png$/)
   assert.match(stored.url, /^\/api\/work-orders\/template-photos\/\d+-dangerous-template\.png$/)
@@ -277,6 +279,29 @@ async function testWorkOrderRoutesExposeTemplatePhotoAndArchiveEndpoints() {
   assert.ok(routeSource.includes('ensureWorkOrderArchiveColumns'))
   assert.ok(routeSource.includes('archivedOnly'))
   assert.ok(routeSource.includes('includeArchived'))
+  assert.ok(routeSource.includes('persistWorkOrderImageRecord'))
+  assert.ok(routeSource.includes('prisma.workOrderImage.findUnique'))
+  assert.ok(routeSource.includes('templatePhotoUrlSnapshot: replacementPhoto.url'))
+  assert.ok(routeSource.includes('prisma.workOrderTicket.updateMany'))
+}
+
+async function testWorkOrderImagesUsePersistentDatabaseStorage() {
+  const schemaSource = await fs.readFile(path.resolve(__dirname, '../prisma/schema.prisma'), 'utf8')
+  const bootstrapSource = await fs.readFile(path.resolve(__dirname, '../src/scripts/applyStudentVideos.ts'), 'utf8')
+
+  assert.ok(schemaSource.includes('model WorkOrderImage'))
+  assert.ok(schemaSource.includes('data             Bytes'))
+  assert.ok(schemaSource.includes('@map("work_order_images")'))
+  assert.ok(bootstrapSource.includes('CREATE TABLE IF NOT EXISTS "work_order_images"'))
+  assert.ok(bootstrapSource.includes('"data" BYTEA NOT NULL'))
+}
+
+async function testExactStudentIdSearchCanEscapeCurrentClassFilter() {
+  const routeSource = await fs.readFile(path.resolve(__dirname, '../src/routes/workOrders.ts'), 'utf8')
+
+  assert.ok(routeSource.includes("studentId: { equals: q, mode: 'insensitive' }"))
+  assert.ok(routeSource.includes('q && currentClassOnly'))
+  assert.ok(routeSource.includes('student.id !== exactIdStudent.id'))
 }
 
 async function testWorkOrderSchemaDefinesTicketArchiveFields() {
@@ -323,6 +348,8 @@ async function run() {
   await testPersistWorkOrderTemplateFileRejectsSpoofedNonImageUpload()
   testWorkOrderUploadUrlUsesApiProxyPath()
   await testWorkOrderRoutesExposeTemplatePhotoAndArchiveEndpoints()
+  await testWorkOrderImagesUsePersistentDatabaseStorage()
+  await testExactStudentIdSearchCanEscapeCurrentClassFilter()
   await testWorkOrderSchemaDefinesTicketArchiveFields()
   await testClientUsesApiSafeWorkOrderPhotoSrc()
   testDefaultTemplateFallbackIsValidImage()

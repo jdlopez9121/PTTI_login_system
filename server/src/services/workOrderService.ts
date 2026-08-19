@@ -241,7 +241,7 @@ export async function persistWorkOrderTemplateFile(args: {
   originalFilename: string
   mimeType: string
   uploadDir?: string
-}): Promise<{ storedPath: string; url: string; sizeBytes: number; originalFilename: string; mimeType: string }> {
+}): Promise<{ storedPath: string; filename: string; url: string; sizeBytes: number; originalFilename: string; mimeType: string; bytes: Buffer }> {
   const uploadDir = args.uploadDir ?? resolveWorkOrderUploadDir()
   const sourceBuffer = args.buffer ?? (args.sourcePath ? await fs.readFile(args.sourcePath) : null)
   if (!sourceBuffer) {
@@ -262,10 +262,12 @@ export async function persistWorkOrderTemplateFile(args: {
 
   return {
     storedPath,
+    filename: uniqueName,
     url: workOrderUploadUrl(uniqueName),
     sizeBytes: sourceBuffer.length,
     originalFilename,
     mimeType: imageType.mimeType,
+    bytes: sourceBuffer,
   }
 }
 

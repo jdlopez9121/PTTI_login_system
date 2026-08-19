@@ -33,6 +33,27 @@ function sendTemplateUploadErrorIfSafe(err: unknown, res: Response): boolean {
   return false
 }
 
+type StoredWorkOrderImage = Awaited<ReturnType<typeof persistWorkOrderTemplateFile>>
+
+async function persistWorkOrderImageRecord(stored: StoredWorkOrderImage): Promise<void> {
+  await prisma.workOrderImage.upsert({
+    where: { filename: stored.filename },
+    update: {
+      data: stored.bytes,
+      mimeType: stored.mimeType,
+      sizeBytes: stored.sizeBytes,
+      originalFilename: stored.originalFilename,
+    },
+    create: {
+      filename: stored.filename,
+      data: stored.bytes,
+      mimeType: stored.mimeType,
+      sizeBytes: stored.sizeBytes,
+      originalFilename: stored.originalFilename,
+    },
+  })
+}
+
 async function ensureDefaultTemplate() {
   const existing = await prisma.workOrderTemplate.findFirst({
     where: { name: DEFAULT_WORK_ORDER_TEMPLATE.name, versionLabel: DEFAULT_WORK_ORDER_TEMPLATE.versionLabel },
@@ -55,6 +76,8 @@ async function ensureDefaultTemplate() {
       mimeType: DEFAULT_WORK_ORDER_TEMPLATE.mimeType,
     })
   }
+
+  await persistWorkOrderImageRecord(stored)
 
   return prisma.workOrderTemplate.create({
     data: {
@@ -119,21 +142,48 @@ const ticketInclude = {
 const studentTicketSelect = buildStudentTicketSelect()
 
 async function sendTemplatePhoto(filename: string, res: Response, next: NextFunction) {
-  try {
-    const upload = resolveSafeWorkOrderUploadPath(filename)
-    if (!upload) {
-      res.status(404).json({ success: false, error: 'Not found' })
-      return
-    }
+  const upload = resolveSafeWorkOrderUploadPath(filename)
+  if (!upload) {
+    res.status(404).json({ success: false, error: 'Not found' })
+    return
+  }
 
+  try {
     const file = await fs.readFile(upload.filePath)
+    try {
+      await prisma.workOrderImage.upsert({
+        where: { filename },
+        update: { data: file, mimeType: upload.contentType, sizeBytes: file.length },
+        create: {
+          filename,
+          data: file,
+          mimeType: upload.contentType,
+          sizeBytes: file.length,
+          originalFilename: filename,
+        },
+      })
+    } catch (persistError) {
+      console.warn('[work-orders] could not backfill template photo into persistent storage', persistError)
+    }
     res.setHeader('Content-Type', upload.contentType)
     res.setHeader('X-Content-Type-Options', 'nosniff')
     res.send(file)
   } catch (err: any) {
     if (err?.code === 'ENOENT') {
-      res.status(404).json({ success: false, error: 'Not found' })
-      return
+      try {
+        const stored = await prisma.workOrderImage.findUnique({ where: { filename } })
+        if (!stored) {
+          res.status(404).json({ success: false, error: 'Not found' })
+          return
+        }
+        res.setHeader('Content-Type', stored.mimeType)
+        res.setHeader('X-Content-Type-Options', 'nosniff')
+        res.send(Buffer.from(stored.data))
+        return
+      } catch (databaseError) {
+        next(databaseError)
+        return
+      }
     }
     next(err)
   }
@@ -402,6 +452,7 @@ router.post('/templates', requireAuth, (req: Request, res: Response, next: NextF
         originalFilename: req.file.originalname,
         mimeType: req.file.mimetype,
       })
+      await persistWorkOrderImageRecord(stored)
       const template = await prisma.workOrderTemplate.create({
         data: {
           name,
@@ -432,11 +483,14 @@ router.put('/templates/:id', requireAuth, (req: Request, res: Response, next: Ne
 
     try {
       const data: Record<string, unknown> = {}
+      let replacementPhoto: StoredWorkOrderImage | null = null
       if (req.body.name !== undefined) data.name = String(req.body.name).trim()
       if (req.body.versionLabel !== undefined) data.versionLabel = String(req.body.versionLabel).trim()
       if (req.body.description !== undefined) data.description = String(req.body.description).trim() || null
       if (req.file) {
         const stored = await persistWorkOrderTemplateFile({ buffer: req.file.buffer, originalFilename: req.file.originalname, mimeType: req.file.mimetype })
+        await persistWorkOrderImageRecord(stored)
+        replacementPhoto = stored
         Object.assign(data, {
           photoPath: stored.storedPath,
           photoUrl: stored.url,
@@ -446,7 +500,22 @@ router.put('/templates/:id', requireAuth, (req: Request, res: Response, next: Ne
         })
       }
 
-      const template = await prisma.workOrderTemplate.update({ where: { id: req.params.id }, data })
+      const updateTemplate = prisma.workOrderTemplate.update({ where: { id: req.params.id }, data })
+      const template = replacementPhoto
+        ? (await prisma.$transaction([
+            updateTemplate,
+            prisma.workOrderTicket.updateMany({
+              where: { templateId: req.params.id },
+              data: {
+                templatePhotoPathSnapshot: replacementPhoto.storedPath,
+                templatePhotoUrlSnapshot: replacementPhoto.url,
+                templatePhotoMimeTypeSnapshot: replacementPhoto.mimeType,
+                templatePhotoSizeBytesSnapshot: replacementPhoto.sizeBytes,
+                templateOriginalFilenameSnapshot: replacementPhoto.originalFilename,
+              },
+            }),
+          ]))[0]
+        : await updateTemplate
       res.json({ success: true, data: template })
     } catch (e) {
       if (sendTemplateUploadErrorIfSafe(e, res)) return
@@ -470,18 +539,25 @@ router.get('/assignees', requireAuth, async (req: Request, res: Response, next: 
     const q = String(req.query.q ?? '').trim()
     const currentClassOnly = String(req.query.currentClassOnly ?? '') === 'true'
     const currentClassStudentIds = currentClassOnly ? await getCurrentClassStudentIds(req) : null
+    const studentSelect = { id: true, studentId: true, fullName: true } as const
     const studentWhere: Prisma.StudentWhereInput = {
       isActive: true,
       ...(currentClassStudentIds ? { studentId: { in: Array.from(currentClassStudentIds) } } : {}),
       ...(q ? { OR: [{ studentId: { contains: q, mode: 'insensitive' } }, { fullName: { contains: q, mode: 'insensitive' } }] } : {}),
     }
-    const [students, teachers] = await Promise.all([
+    const [filteredStudents, exactIdStudent, teachers] = await Promise.all([
       prisma.student.findMany({
         where: studentWhere,
-        select: { id: true, studentId: true, fullName: true },
+        select: studentSelect,
         take: 20,
         orderBy: { fullName: 'asc' },
       }),
+      q && currentClassOnly
+        ? prisma.student.findFirst({
+            where: { isActive: true, studentId: { equals: q, mode: 'insensitive' } },
+            select: studentSelect,
+          })
+        : Promise.resolve(null),
       prisma.teacher.findMany({
         where: q ? { OR: [{ name: { contains: q, mode: 'insensitive' } }, { email: { contains: q, mode: 'insensitive' } }] } : {},
         select: { id: true, name: true, email: true },
@@ -489,6 +565,9 @@ router.get('/assignees', requireAuth, async (req: Request, res: Response, next: 
         orderBy: { name: 'asc' },
       }),
     ])
+    const students = exactIdStudent
+      ? [exactIdStudent, ...filteredStudents.filter((student) => student.id !== exactIdStudent.id)].slice(0, 20)
+      : filteredStudents
     res.json({ success: true, data: { students, teachers } })
   } catch (err) { next(err) }
 })
