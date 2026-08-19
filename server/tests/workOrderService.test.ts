@@ -280,6 +280,8 @@ async function testWorkOrderRoutesExposeTemplatePhotoAndArchiveEndpoints() {
   assert.ok(routeSource.includes('archivedOnly'))
   assert.ok(routeSource.includes('includeArchived'))
   assert.ok(routeSource.includes('persistWorkOrderImageRecord'))
+  assert.ok(routeSource.includes('ensureWorkOrderImagesTable'))
+  assert.ok(routeSource.includes('CREATE TABLE IF NOT EXISTS "work_order_images"'))
   assert.ok(routeSource.includes('prisma.workOrderImage.findUnique'))
   assert.ok(routeSource.includes('templatePhotoUrlSnapshot: replacementPhoto.url'))
   assert.ok(routeSource.includes('prisma.workOrderTicket.updateMany'))

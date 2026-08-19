@@ -24,6 +24,7 @@ const VALID_STATUSES = new Set(['open', 'assigned', 'in_progress', 'submitted_co
 const VALID_SHIFTS: Shift[] = ['morning', 'afternoon', 'evening', 'night']
 const INVALID_TEMPLATE_PHOTO_ERROR = 'photo must be a PNG, JPEG, WebP, or GIF image'
 let workOrderArchiveColumnsReady: Promise<void> | null = null
+let workOrderImagesTableReady: Promise<void> | null = null
 
 function sendTemplateUploadErrorIfSafe(err: unknown, res: Response): boolean {
   if (err instanceof Error && err.message === INVALID_TEMPLATE_PHOTO_ERROR) {
@@ -35,7 +36,26 @@ function sendTemplateUploadErrorIfSafe(err: unknown, res: Response): boolean {
 
 type StoredWorkOrderImage = Awaited<ReturnType<typeof persistWorkOrderTemplateFile>>
 
+function ensureWorkOrderImagesTable(): Promise<void> {
+  if (!workOrderImagesTableReady) {
+    workOrderImagesTableReady = prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS "work_order_images" (
+        "filename" TEXT NOT NULL,
+        "data" BYTEA NOT NULL,
+        "mime_type" TEXT NOT NULL,
+        "size_bytes" INTEGER NOT NULL,
+        "original_filename" TEXT NOT NULL,
+        "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT "work_order_images_pkey" PRIMARY KEY ("filename")
+      )
+    `).then(() => undefined)
+  }
+  return workOrderImagesTableReady
+}
+
 async function persistWorkOrderImageRecord(stored: StoredWorkOrderImage): Promise<void> {
+  await ensureWorkOrderImagesTable()
   await prisma.workOrderImage.upsert({
     where: { filename: stored.filename },
     update: {
@@ -149,6 +169,7 @@ async function sendTemplatePhoto(filename: string, res: Response, next: NextFunc
   }
 
   try {
+    await ensureWorkOrderImagesTable()
     const file = await fs.readFile(upload.filePath)
     try {
       await prisma.workOrderImage.upsert({
