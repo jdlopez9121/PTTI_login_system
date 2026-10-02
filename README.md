@@ -231,6 +231,31 @@ Teachers can bulk-import students from the school's Excel roster via the **Impor
 
 ## Available Scripts
 
+### Monthly attendance grades
+
+Attendance uses exactly 20 dates: Monday–Friday for four consecutive weeks starting
+on the month's first Monday. Remaining days are excluded. When necessary in February,
+the fourth week extends into March to preserve 20 spots. Dates use America/New_York.
+Each student receives one completed check mark per scheduled date with any sign-in,
+regardless of shift, room, time, or repeated sign-ins. Grades show both the completed
+count and percentage (for example, **18/20 completed — 90%**). The existing late
+sign-in warnings and subject weights (attendance 10%, quizzes 15%, projects 75%) remain.
+Existing attendance logs are recalculated under these rules; no logs are deleted.
+
+The server creates the current and upcoming month's named attendance grades on startup
+and checks daily at 11:50 PM Philadelphia time. Creation is idempotent, and viewing an
+older month creates its definition if needed. The server must be running for scheduled
+work; startup and grade reads recover missed creation.
+
+Docker startup initializes the new table automatically. For a non-Docker installation,
+configure `DATABASE_URL`, then run `npm run db:generate --prefix server` and
+`npm run db:attendance --prefix server` before starting the updated server. A matching
+Prisma migration is included for installations managed through migrations.
+Run attendance regression tests with `npm run test:attendance --prefix server`.
+
+The roster schema stores cohort start month but not cohort start year; historical
+rosters therefore remain limited to matching active students by month and track.
+
 All from the project root:
 
 | Script | Description |

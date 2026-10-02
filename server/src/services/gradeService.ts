@@ -1,76 +1,5 @@
-import { Shift } from '@prisma/client'
 import prisma from '../lib/prisma'
-import { getProgramMonth } from './headcountService'
-
-// ---------------------------------------------------------------------------
-// Calendar helpers — piggybacking on the monthly rotation cron logic.
-// The cron fires on the 1st of every month, so each cohort month maps
-// exactly to one calendar month. Expected attendance days = weekdays in
-// that calendar month (Mon–Fri), matching what the rotation boundary defines.
-// ---------------------------------------------------------------------------
-
-export function workdaysInMonth(year: number, month: number): number {
-  const daysInMonth = new Date(year, month, 0).getDate()
-  let count = 0
-  for (let day = 1; day <= daysInMonth; day++) {
-    const dow = new Date(year, month - 1, day).getDay()
-    if (dow !== 0 && dow !== 6) count++
-  }
-  return count
-}
-
-// Given a student's cohortStartMonth and their programMonth (1–5),
-// derive the calendar month (1–12) and year that cohort period falls in.
-export function cohortCalendarMonth(
-  cohortStartMonth: number,
-  programMonth: number,
-  referenceDate: Date = new Date()
-): { month: number; year: number } {
-  const currentMonth = referenceDate.getMonth() + 1
-  const currentYear  = referenceDate.getFullYear()
-
-  // Raw calendar month (may overflow 12)
-  const rawMonth = cohortStartMonth + programMonth - 1
-  const month = ((rawMonth - 1) % 12) + 1
-
-  // If the cohort month is in the future relative to now, it wrapped to last year
-  const wrappedBack = rawMonth > 12
-  let year = currentYear
-  if (wrappedBack && month > currentMonth) year -= 1
-  if (!wrappedBack && month > currentMonth) year -= 1
-
-  return { month, year }
-}
-
-// ---------------------------------------------------------------------------
-// Attendance
-// ---------------------------------------------------------------------------
-
-export async function getAttendancePercent(
-  studentDbId: string,
-  cohortStartMonth: number,
-  programMonth: number,
-  teacherShift: Shift,
-  referenceDate: Date = new Date()
-): Promise<{ signIns: number; expectedDays: number; percent: number }> {
-  const { month, year } = cohortCalendarMonth(cohortStartMonth, programMonth, referenceDate)
-
-  const firstDay = new Date(year, month - 1, 1)
-  const lastDay  = new Date(year, month, 0, 23, 59, 59, 999)
-
-  const signIns = await prisma.attendanceLog.count({
-    where: {
-      studentId: studentDbId,
-      shift: teacherShift,
-      loginTime: { gte: firstDay, lte: lastDay },
-    },
-  })
-
-  const expectedDays = workdaysInMonth(year, month)
-  const percent = Math.min(100, Math.round((signIns / expectedDays) * 100))
-
-  return { signIns, expectedDays, percent }
-}
+import { getMonthlyAttendance } from './monthlyAttendanceService'
 
 // ---------------------------------------------------------------------------
 // Weighted grade calculation
@@ -80,7 +9,7 @@ export async function getAttendancePercent(
 // ---------------------------------------------------------------------------
 
 export interface GradeBreakdown {
-  attendance: { signIns: number; expectedDays: number; percent: number }
+  attendance: Awaited<ReturnType<typeof getMonthlyAttendance>>
   quiz: { earned: number; possible: number; percent: number; entries: QuizEntry[] }
   project: { earned: number; possible: number; percent: number; entries: ProjectEntry[] }
   total: number
@@ -103,18 +32,12 @@ export interface ProjectEntry {
 
 export async function calculateGrade(
   studentDbId: string,
-  cohortStartMonth: number,
-  programMonth: number,
   subject: string,
-  teacherShift: Shift,
   cohortMonth: number,
   cohortYear: number,
-  referenceDate: Date = new Date()
 ): Promise<GradeBreakdown> {
   // Attendance
-  const attendance = await getAttendancePercent(
-    studentDbId, cohortStartMonth, programMonth, teacherShift, referenceDate
-  )
+  const attendance = await getMonthlyAttendance(studentDbId, cohortYear, cohortMonth)
 
   // Templates for this subject
   const [quizTemplates, projectTemplates] = await Promise.all([

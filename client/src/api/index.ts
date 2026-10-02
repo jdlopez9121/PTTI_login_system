@@ -386,7 +386,7 @@ export type ProjectEntry = {
   submittedAt: string | null; verifiedAt: string | null
 }
 export type GradeBreakdown = {
-  attendance: { signIns: number; expectedDays: number; percent: number }
+  attendance: { name: string; year: number; month: number; signIns: number; expectedDays: number; percent: number; days: { date: string; completed: boolean }[] }
   quiz:    { earned: number; possible: number; percent: number; entries: QuizEntry[] }
   project: { earned: number; possible: number; percent: number; entries: ProjectEntry[] }
   total: number

@@ -4,8 +4,9 @@ import { GradeType, Prisma } from '@prisma/client'
 import prisma from '../lib/prisma'
 import { requireAuth } from '../middleware/requireAuth'
 import { getProgramMonth } from '../services/headcountService'
-import { calculateGrade, cohortCalendarMonth } from '../services/gradeService'
+import { calculateGrade } from '../services/gradeService'
 import { trackFromShift } from '../services/shiftService'
+import { schoolCalendarMonth } from '../services/monthlyAttendanceService'
 import {
   applyQuizGradeImport,
   parseQuizGradeWorkbook,
@@ -327,16 +328,13 @@ router.post('/submit-project', async (req: Request, res: Response, next: NextFun
     }
 
     const now = new Date()
-    const currentMonth = now.getMonth() + 1
-    const currentYear  = now.getFullYear()
+    const currentMonth = schoolCalendarMonth(now).month
     const programMonth = getProgramMonth(student.cohortStartMonth, currentMonth)
     if (!programMonth) {
       res.status(400).json({ success: false, error: 'Student is not in an active program month' })
       return
     }
-    const { month: cohortMonth, year: cohortYear } = cohortCalendarMonth(
-      student.cohortStartMonth, programMonth, now
-    )
+    const { month: cohortMonth, year: cohortYear } = schoolCalendarMonth(now)
 
     // Upsert so re-submission updates the timestamp without creating duplicates
     const entry = await prisma.gradeEntry.upsert({
@@ -375,7 +373,7 @@ function handleQuizGradeUpload(apply: boolean) {
       const subject = String(req.body.subject ?? '').trim()
       const cohortMonth = parseInt(String(req.body.cohortMonth ?? '0'))
       const cohortYear = parseInt(String(req.body.cohortYear ?? '0'))
-      if (!subject || !cohortMonth || !cohortYear) {
+      if (!subject || !Number.isInteger(cohortMonth) || cohortMonth < 1 || cohortMonth > 12 || !Number.isInteger(cohortYear) || cohortYear < 1900 || cohortYear > 9999) {
         res.status(400).json({ success: false, error: 'subject, cohortMonth, and cohortYear required' })
         return
       }
@@ -431,7 +429,7 @@ router.get('/dashboard', requireAuth, async (req: Request, res: Response, next: 
     const cohortMonth = parseInt(String(req.query.cohortMonth ?? '0'))
     const cohortYear  = parseInt(String(req.query.cohortYear  ?? '0'))
 
-    if (!subject || !cohortMonth || !cohortYear) {
+    if (!subject || !Number.isInteger(cohortMonth) || cohortMonth < 1 || cohortMonth > 12 || !Number.isInteger(cohortYear) || cohortYear < 1900 || cohortYear > 9999) {
       res.status(400).json({ success: false, error: 'subject, cohortMonth, and cohortYear required' })
       return
     }
@@ -458,17 +456,14 @@ router.get('/dashboard', requireAuth, async (req: Request, res: Response, next: 
       return
     }
 
-    // Find all active students whose current programMonth matches the curriculum
-    const now = new Date()
-    const currentCalendarMonth = now.getMonth() + 1
-
+    // Match the roster to the selected grading month and the subject track.
     const allStudents = await prisma.student.findMany({
-      where: { isActive: true, isFloating: false },
+      where: { isActive: true, track },
       select: { id: true, studentId: true, fullName: true, cohortStartMonth: true },
     })
 
     const students = allStudents.filter((s) => {
-      const pm = getProgramMonth(s.cohortStartMonth, currentCalendarMonth)
+      const pm = getProgramMonth(s.cohortStartMonth, cohortMonth)
       return pm === curriculum.programMonth
     })
 
@@ -476,8 +471,7 @@ router.get('/dashboard', requireAuth, async (req: Request, res: Response, next: 
     const grades = await Promise.all(
       students.map(async (s) => {
         const grade = await calculateGrade(
-          s.id, s.cohortStartMonth, curriculum.programMonth,
-          subject, curriculum.shift, cohortMonth, cohortYear, now
+          s.id, subject, cohortMonth, cohortYear
         )
         return { studentId: s.studentId, fullName: s.fullName, dbId: s.id, ...grade }
       })
@@ -515,19 +509,16 @@ router.get('/student/:studentId', async (req: Request, res: Response, next: Next
     }
 
     const now = new Date()
-    const programMonth = getProgramMonth(student.cohortStartMonth, now.getMonth() + 1)
+    const programMonth = getProgramMonth(student.cohortStartMonth, schoolCalendarMonth(now).month)
     if (!programMonth) {
       res.status(400).json({ success: false, error: 'Student is not in an active program month' })
       return
     }
 
-    const { month: cohortMonth, year: cohortYear } = cohortCalendarMonth(
-      student.cohortStartMonth, programMonth, now
-    )
+    const { month: cohortMonth, year: cohortYear } = schoolCalendarMonth(now)
 
     const grade = await calculateGrade(
-      student.id, student.cohortStartMonth, programMonth,
-      subject, curriculum.shift, cohortMonth, cohortYear, now
+      student.id, subject, cohortMonth, cohortYear
     )
 
     res.json({

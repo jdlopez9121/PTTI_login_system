@@ -16,6 +16,7 @@ import {
   type QuizGradeImportApplyResult,
 } from '../api'
 import { formatDisplayName } from '../utils/formatName'
+import MonthlyAttendance from './MonthlyAttendance'
 
 interface Props {
   teacherSubjects: string[]
@@ -392,7 +393,7 @@ export default function GradeDashboard({ teacherSubjects, onClose }: Props) {
                   <th style={{ width: 24 }}></th>
                   <th>ID</th>
                   <th>Name</th>
-                  <th>Attend % (10%)</th>
+                  <th>Month Attendance (10%)</th>
                   <th>Quiz % (15%)</th>
                   <th>Project % (75%)</th>
                   <th>Total</th>
@@ -423,7 +424,7 @@ export default function GradeDashboard({ teacherSubjects, onClose }: Props) {
                     </td>
                     <td>
                       <span className={`badge ${student.attendance.percent >= 80 ? 'badge-green' : student.attendance.percent >= 60 ? 'badge-blue' : 'badge-gray'}`}>
-                        {student.attendance.percent}% ({student.attendance.signIns}/{student.attendance.expectedDays})
+                        {student.attendance.signIns}/{student.attendance.expectedDays} completed — {student.attendance.percent}%
                       </span>
                     </td>
                     <td>
@@ -446,6 +447,7 @@ export default function GradeDashboard({ teacherSubjects, onClose }: Props) {
                   expandedRows.has(student.dbId) && (
                     <tr key={`${student.dbId}-detail`}>
                       <td colSpan={7} style={{ background: 'var(--gray-50)', padding: '0.75rem 1rem' }}>
+                        <MonthlyAttendance attendance={student.attendance} />
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
                           {/* Quiz scores */}
                           <div>

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { getStudentGrades } from '../api'
+import MonthlyAttendance from './MonthlyAttendance'
 
 interface Props {
   room: string
@@ -138,6 +139,8 @@ export default function ViewGradesModal({ room, onClose }: Props) {
                 <p style={{ fontSize: '0.65rem', color: 'var(--gray-400)', marginTop: '0.15rem' }}>(75% weight)</p>
               </div>
             </div>
+
+            <MonthlyAttendance attendance={data.attendance} />
 
             {/* Project submission status */}
             {data.project.entries.length > 0 && (

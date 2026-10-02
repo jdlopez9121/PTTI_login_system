@@ -127,6 +127,18 @@ model Room {
   @@map("rooms")
 }
 
+model AttendanceMonth {
+  id        String   @id @default(uuid())
+  year      Int
+  month     Int
+  name      String
+  dates     String[]
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([year, month])
+  @@map("attendance_months")
+}
+
 model AttendanceLog {
   id          String   @id @default(uuid())
   studentId   String   @map("student_id")

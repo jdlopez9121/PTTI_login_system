@@ -12,6 +12,7 @@ import gradesRouter from './routes/grades'
 import notificationsRouter from './routes/notifications'
 import workOrdersRouter from './routes/workOrders'
 import { scheduleMonthlyRotation } from './cron/monthlyRotation'
+import { scheduleMonthlyAttendance } from './cron/monthlyAttendance'
 import { scheduleMicrosoftCalendarSync } from './cron/microsoftCalendarSync'
 import prisma from './lib/prisma'
 import { archiveExpiredNotifications } from './services/notificationService'
@@ -88,6 +89,7 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 })
 
 scheduleMonthlyRotation()
+scheduleMonthlyAttendance()
 scheduleMicrosoftCalendarSync()
 archiveExpiredNotifications(prisma)
   .then((count) => {
