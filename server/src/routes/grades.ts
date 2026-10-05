@@ -459,12 +459,13 @@ router.get('/dashboard', requireAuth, async (req: Request, res: Response, next: 
     // Match the roster to the selected grading month and the subject track.
     const allStudents = await prisma.student.findMany({
       where: { isActive: true, track },
-      select: { id: true, studentId: true, fullName: true, cohortStartMonth: true },
+      select: { id: true, studentId: true, fullName: true, cohortStartMonth: true, cohortStartYear: true },
     })
 
     const students = allStudents.filter((s) => {
-      const pm = getProgramMonth(s.cohortStartMonth, cohortMonth)
-      return pm === curriculum.programMonth
+      if (s.cohortStartYear === null) return false
+      const pm = (cohortYear - s.cohortStartYear) * 12 + cohortMonth - s.cohortStartMonth + 1
+      return pm >= 1 && pm <= 5 && pm === curriculum.programMonth
     })
 
     // Calculate grade for each student
@@ -477,7 +478,7 @@ router.get('/dashboard', requireAuth, async (req: Request, res: Response, next: 
       })
     )
 
-    res.json({ success: true, data: { subject, cohortMonth, cohortYear, students: grades } })
+    res.json({ success: true, data: { subject, cohortMonth, cohortYear, students: grades, message: grades.length === 0 ? "student cohort has not been uploaded yet to the system" : null } })
   } catch (err) { next(err) }
 })
 

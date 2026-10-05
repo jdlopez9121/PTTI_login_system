@@ -12,6 +12,7 @@ export default function AddStudentModal({ onClose, onSaved }: Props) {
   const [studentId, setStudentId] = useState('')
   const [fullName, setFullName] = useState('')
   const [cohortStartMonth, setCohortStartMonth] = useState('')
+  const [cohortStartYear, setCohortStartYear] = useState(String(new Date().getFullYear()))
   const [track, setTrack] = useState<'day' | 'night'>('day')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -29,6 +30,7 @@ export default function AddStudentModal({ onClose, onSaved }: Props) {
         studentId: studentId.trim(),
         fullName: fullName.trim(),
         cohortStartMonth: parseInt(cohortStartMonth),
+        cohortStartYear: Number(cohortStartYear),
         track,
       })
       onSaved()
@@ -61,6 +63,10 @@ export default function AddStudentModal({ onClose, onSaved }: Props) {
               <option value="">Select month</option>
               {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
             </select>
+          </div>
+          <div className="form-group">
+            <label>Cohort Start Year</label>
+            <input className="input" type="number" min={1900} max={9999} required value={cohortStartYear} onChange={(e) => setCohortStartYear(e.target.value)} />
           </div>
           <div className="form-group">
             <label>Track</label>

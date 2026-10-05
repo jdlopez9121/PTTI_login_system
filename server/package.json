@@ -19,7 +19,12 @@
     "test:quiz-import": "tsx tests/quizGradeImportService.test.ts",
     "test:work-orders": "tsx tests/workOrderService.test.ts",
     "test:notifications": "tsx tests/notificationService.test.ts",
-    "test:microsoft-calendar": "tsx tests/microsoftCalendarService.test.ts"
+    "test:microsoft-calendar": "tsx tests/microsoftCalendarService.test.ts",
+    "predev": "npm run db:generate && npm run db:cohorts && npm run db:attendance",
+    "prebuild": "prisma generate",
+    "prestart": "node dist/scripts/applyCohortYears.js && node dist/scripts/applyAttendanceMonths.js",
+    "db:cohorts": "tsx src/scripts/applyCohortYears.ts",
+    "test:cohort-import": "tsx tests/cohortImport.test.ts"
   },
   "dependencies": {
     "@azure/msal-node": "^5.2.5",

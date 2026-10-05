@@ -8,10 +8,12 @@ interface ImportResult {
   errors: string[]
 }
 
-// Excel serial date → calendar month (1–12)
-function excelSerialToMonth(serial: number): number {
-  const ms = (serial - 25569) * 86400000
-  return new Date(ms).getMonth() + 1
+// Excel serial date to cohort month and year.
+function excelSerialToCohort(serial: number, date1904: boolean) {
+  if (!Number.isFinite(serial)) return null
+  const date = XLSX.SSF.parse_date_code(serial, { date1904 })
+  if (!date || date.y < 1900 || date.y > 9999 || date.m < 1 || date.m > 12) return null
+  return { cohortStartMonth: date.m, cohortStartYear: date.y }
 }
 
 // Parse Groups column: contains "DAY" or "EVE" (sometimes with extra text)
@@ -69,8 +71,8 @@ export async function importStudentsFromBuffer(fileBuffer: Buffer): Promise<Impo
       continue
     }
 
-    const cohortStartMonth = typeof startRaw === 'number' ? excelSerialToMonth(startRaw) : null
-    if (!cohortStartMonth) {
+    const cohort = typeof startRaw === 'number' ? excelSerialToCohort(startRaw, !!workbook.Workbook?.WBProps?.date1904) : null
+    if (!cohort) {
       errors.push(`Row ${i + 2}: invalid or missing Start date for Acct "${acct}"`)
       continue
     }
@@ -83,6 +85,8 @@ export async function importStudentsFromBuffer(fileBuffer: Buffer): Promise<Impo
 
     const existing = await prisma.student.findUnique({ where: { studentId: acct } })
     if (existing) {
+      // Restore dates discarded by older imports without creating duplicate students.
+      await prisma.student.update({ where: { id: existing.id }, data: cohort })
       skipped++
       continue
     }
@@ -91,7 +95,7 @@ export async function importStudentsFromBuffer(fileBuffer: Buffer): Promise<Impo
       data: {
         studentId: acct,
         fullName: nameRaw,
-        cohortStartMonth,
+        ...cohort,
         track,
       },
     })

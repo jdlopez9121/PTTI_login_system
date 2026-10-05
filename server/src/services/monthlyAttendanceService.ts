@@ -35,11 +35,13 @@ export function monthlyAttendanceDefinition(year: number, month: number) {
 }
 
 export async function ensureAttendanceMonth(year: number, month: number) {
-  return prisma.attendanceMonth.upsert({
-    where: { year_month: { year, month } },
-    update: {},
-    create: monthlyAttendanceDefinition(year, month),
+  const definition = monthlyAttendanceDefinition(year, month)
+  // INSERT ... ON CONFLICT DO NOTHING also handles concurrent server startups.
+  await prisma.attendanceMonth.createMany({
+    data: [definition],
+    skipDuplicates: true,
   })
+  return definition
 }
 
 export async function prepareAttendanceMonths(now: Date = new Date()) {
@@ -56,8 +58,9 @@ export function attendanceBreakdown(period: { name: string; year: number; month:
 }
 
 export async function getMonthlyAttendance(studentId: string, year: number, month: number) {
-  // Lazy creation also covers historical months and downtime during the scheduled job.
-  const period = await ensureAttendanceMonth(year, month)
+  // The calendar is deterministic. Reading grades must not require a schema write
+  // or the scheduled job's month-definition table to have been initialized yet.
+  const period = monthlyAttendanceDefinition(year, month)
   // Fetch a padded UTC range; membership is determined by Philadelphia calendar dates.
   const start = new Date(`${period.dates[0]}T00:00:00Z`)
   const end = new Date(`${period.dates[19]}T00:00:00Z`)

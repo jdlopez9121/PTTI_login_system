@@ -384,7 +384,7 @@ export default function GradeDashboard({ teacherSubjects, onClose }: Props) {
             <p style={{ textAlign: 'center', color: 'var(--gray-400)', padding: '2rem' }}>Loading…</p>
           ) : !dashboard || dashboard.students.length === 0 ? (
             <p style={{ textAlign: 'center', color: 'var(--gray-400)', padding: '2rem' }}>
-              No students found for {subject} — {MONTHS[cohortMonth - 1]} {cohortYear}.
+              {dashboard?.message ?? "student cohort has not been uploaded yet to the system"}
             </p>
           ) : (
             <table>

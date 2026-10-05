@@ -155,10 +155,11 @@ router.get('/search', requireAuth, async (req: Request, res: Response, next: Nex
 // POST /api/students — add student manually (teacher auth)
 router.post('/', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { studentId, fullName, cohortStartMonth, track } = req.body as {
+    const { studentId, fullName, cohortStartMonth, cohortStartYear, track } = req.body as {
       studentId: string
       fullName: string
       cohortStartMonth: number
+      cohortStartYear: number
       track: Track
     }
 
@@ -167,6 +168,10 @@ router.post('/', requireAuth, async (req: Request, res: Response, next: NextFunc
       return
     }
 
+    if (!Number.isInteger(cohortStartYear) || cohortStartYear < 1900 || cohortStartYear > 9999 || !Number.isInteger(cohortStartMonth) || cohortStartMonth < 1 || cohortStartMonth > 12) {
+      res.status(400).json({ success: false, error: 'Valid cohort start month and year are required' })
+      return
+    }
     const existing = await prisma.student.findUnique({ where: { studentId } })
     if (existing) {
       res.status(409).json({ success: false, error: 'A student with this ID already exists' })
@@ -174,7 +179,7 @@ router.post('/', requireAuth, async (req: Request, res: Response, next: NextFunc
     }
 
     const student = await prisma.student.create({
-      data: { studentId, fullName, cohortStartMonth: Number(cohortStartMonth), track },
+      data: { studentId, fullName, cohortStartMonth: Number(cohortStartMonth), cohortStartYear, track },
     })
 
     res.status(201).json({ success: true, data: student })

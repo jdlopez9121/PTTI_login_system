@@ -82,7 +82,7 @@ export const getDashboard = (date?: string, shift?: string) => {
 export const searchStudents = (q: string) =>
   request<SearchStudent[]>(`/students/search?q=${encodeURIComponent(q)}`)
 export const addStudent = (data: {
-  studentId: string; fullName: string; cohortStartMonth: number; track: string
+  studentId: string; fullName: string; cohortStartMonth: number; cohortStartYear: number; track: string
 }) => request('/students', { method: 'POST', body: JSON.stringify(data) })
 export const manualAttendance = (data: {
   studentDbId: string; loginTime: string; roomName: string
@@ -395,7 +395,7 @@ export type StudentGrade = GradeBreakdown & {
   studentId: string; fullName: string; dbId: string
 }
 export type GradeDashboard = {
-  subject: string; cohortMonth: number; cohortYear: number; students: StudentGrade[]
+  subject: string; cohortMonth: number; cohortYear: number; students: StudentGrade[]; message: string | null
 }
 export type ParsedQuizGradeRow = {
   rowNumber: number; firstName: string; lastName: string; fullName: string

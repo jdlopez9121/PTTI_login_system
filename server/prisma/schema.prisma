@@ -80,6 +80,7 @@ model Student {
   studentId        String            @unique @map("student_id")
   fullName         String            @map("full_name")
   cohortStartMonth Int               @map("cohort_start_month")
+  cohortStartYear  Int?              @map("cohort_start_year")
   track            Track
   isFloating       Boolean           @default(false) @map("is_floating")
   isActive         Boolean           @default(true) @map("is_active")

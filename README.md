@@ -243,13 +243,15 @@ sign-in warnings and subject weights (attendance 10%, quizzes 15%, projects 75%)
 Existing attendance logs are recalculated under these rules; no logs are deleted.
 
 The server creates the current and upcoming month's named attendance grades on startup
-and checks daily at 11:50 PM Philadelphia time. Creation is idempotent, and viewing an
-older month creates its definition if needed. The server must be running for scheduled
-work; startup and grade reads recover missed creation.
+and checks daily at 11:50 PM Philadelphia time. Creation is safe to repeat, including
+concurrent server startups. Grade reads derive the same calendar directly from the
+selected month without writing to the database, so a missing month-definition table
+does not prevent viewing grades. The server must be running for scheduled work;
+startup recovers missed creation for the current and upcoming month.
 
-Docker startup initializes the new table automatically. For a non-Docker installation,
-configure `DATABASE_URL`, then run `npm run db:generate --prefix server` and
-`npm run db:attendance --prefix server` before starting the updated server. A matching
+Docker, `npm start`, and `npm run dev` initialize the new table automatically. For a custom
+startup command, configure `DATABASE_URL`, then run `npm run db:generate --prefix server`
+and `npm run db:attendance --prefix server` before starting the updated server. A matching
 Prisma migration is included for installations managed through migrations.
 Run attendance regression tests with `npm run test:attendance --prefix server`.
 
@@ -272,3 +274,9 @@ From `server/` only:
 | Script | Description |
 |---|---|
 | `npm run add:teacher -- [flags]` | Create a teacher account |
+
+### Cohort years in the grades dashboard
+
+Grade rosters match the selected grading month and year to the subject program month, including year boundaries. Uploads preserve the year from the Start column; manual entry requires a cohort start year. Existing students with unknown years are excluded until the original Full Pop roster is re-uploaded. Re-uploading updates cohort dates without creating duplicate students or removing grades. Startup initializes the new nullable cohort_start_year column; a matching migration is included. An empty grade roster displays "student cohort has not been uploaded yet to the system".
+
+Run `npm run test:attendance` and `npm run test:cohort-import` in server to verify cohort selection and date imports.
