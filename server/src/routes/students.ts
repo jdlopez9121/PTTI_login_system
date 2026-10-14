@@ -30,6 +30,9 @@ router.post('/login', async (req: Request, res: Response, next: NextFunction) =>
 
     const student = await prisma.student.findFirst({
       where: { isActive: true, studentId: id },
+      // Sign-in needs no cohort metadata. Selecting every column makes attendance
+      // fail when a newer roster column has not yet been migrated in production.
+      select: { id: true, fullName: true },
     })
 
     if (!student) {
@@ -230,7 +233,10 @@ router.post('/attendance/manual', requireAuth, async (req: Request, res: Respons
       return
     }
 
-    const student = await prisma.student.findUnique({ where: { id: studentDbId } })
+    const student = await prisma.student.findUnique({
+      where: { id: studentDbId },
+      select: { id: true, fullName: true },
+    })
     if (!student) {
       res.status(404).json({ success: false, error: 'Student not found' })
       return
