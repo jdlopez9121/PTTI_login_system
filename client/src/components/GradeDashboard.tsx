@@ -17,6 +17,7 @@ import {
 } from '../api'
 import { formatDisplayName } from '../utils/formatName'
 import MonthlyAttendance from './MonthlyAttendance'
+import ClassPerformance from './ClassPerformance'
 
 interface Props {
   teacherSubjects: string[]
@@ -45,6 +46,7 @@ export default function GradeDashboard({ teacherSubjects, initialStudentId, init
   const [error, setError] = useState('')
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
   const [showTemplateManager, setShowTemplateManager] = useState(false)
+  const [showClassPerformance, setShowClassPerformance] = useState(false)
   const [savingEntry, setSavingEntry] = useState<string | null>(null)
   const [autoVerifying, setAutoVerifying] = useState<string | null>(null)
   const [scoreInputs, setScoreInputs] = useState<Record<string, string>>({})
@@ -254,6 +256,9 @@ export default function GradeDashboard({ teacherSubjects, initialStudentId, init
           </div>
           <button className="btn btn-primary" onClick={loadData} disabled={loading}>
             {loading ? 'Loading…' : '↻ Refresh'}
+          </button>
+          <button className="btn btn-secondary" onClick={() => setShowClassPerformance(true)} disabled={loading || !subject}>
+            Review Class Performance
           </button>
           <button
             className="btn btn-secondary"
@@ -560,6 +565,10 @@ export default function GradeDashboard({ teacherSubjects, initialStudentId, init
             </table>
           )}
         </div>
+
+        {showClassPerformance && (
+          <ClassPerformance subject={subject} month={cohortMonth} year={cohortYear} onClose={() => setShowClassPerformance(false)} />
+        )}
 
         {dashboard && (
           <p style={{ fontSize: '0.75rem', color: 'var(--gray-400)', paddingTop: '0.5rem', textAlign: 'right' }}>
