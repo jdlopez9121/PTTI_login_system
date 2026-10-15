@@ -9,8 +9,8 @@ const TIERS = [
   { name: 'Needs Support', minimum: 0, range: 'Below 75%', background: '#f1dedd', color: '#85413e' },
 ]
 
-export default function ClassPerformance({ subject, month, year, enrollmentMonth, enrollmentYear, onClose }: {
-  subject: string; month: number; year: number; enrollmentMonth: number; enrollmentYear: number; onClose: () => void
+export default function ClassPerformance({ subject, month, year, onClose }: {
+  subject: string; month: number; year: number; onClose: () => void
 }) {
   const [students, setStudents] = useState<StudentGrade[]>([])
   const [loading, setLoading] = useState(true)
@@ -21,13 +21,13 @@ export default function ClassPerformance({ subject, month, year, enrollmentMonth
     setLoading(true)
     setError('')
     // Always load the class roster, even when opened from a single student's grades.
-    getGradeDashboard(subject, month, year, undefined, { month: enrollmentMonth, year: enrollmentYear }).then((data) => {
+    getGradeDashboard(subject, month, year).then((data) => {
       if (!cancelled) setStudents(data.students)
     }).catch((err) => {
       if (!cancelled) setError(err instanceof Error ? err.message : 'Unable to load class performance')
     }).finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [subject, month, year, enrollmentMonth, enrollmentYear])
+  }, [subject, month, year])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -54,7 +54,6 @@ export default function ClassPerformance({ subject, month, year, enrollmentMonth
           <button className="modal-close" aria-label="Close class performance" onClick={onClose} autoFocus>×</button>
         </div>
         <p style={{ marginBottom: '0.5rem', fontWeight: 600 }}>{subject} · {new Intl.DateTimeFormat('en-US', { month: 'long' }).format(new Date(year, month - 1, 1))} {year}</p>
-        <p style={{ fontSize: '0.8rem', color: 'var(--gray-600)', marginBottom: '0.5rem' }}>Enrollment cohort: {enrollmentMonth}/{enrollmentYear} · Grading period: {month}/{year}</p>
         <p style={{ fontSize: '0.8rem', color: 'var(--gray-600)', marginBottom: '1rem' }}>
           Ranked by overall grade: attendance 10%, quizzes 15%, projects 75%. Equal scores share a rank. Grades reflect currently recorded work.
         </p>

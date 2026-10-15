@@ -40,8 +40,6 @@ export default function GradeDashboard({ teacherSubjects, initialStudentId, init
   const [subject, setSubject] = useState(initialSubject && teacherSubjects.includes(initialSubject) ? initialSubject : teacherSubjects[0] ?? '')
   const [cohortMonth, setCohortMonth] = useState(now.getMonth() + 1)
   const [cohortYear, setCohortYear] = useState(now.getFullYear())
-  const [enrollmentMonth, setEnrollmentMonth] = useState(now.getMonth() + 1)
-  const [enrollmentYear, setEnrollmentYear] = useState(now.getFullYear())
   const [dashboard, setDashboard] = useState<GradeDashboardData | null>(null)
   const [templates, setTemplates] = useState<GradeTemplate[]>([])
   const [loading, setLoading] = useState(false)
@@ -65,7 +63,7 @@ export default function GradeDashboard({ teacherSubjects, initialStudentId, init
     setError('')
     try {
       const [dash, tmpl] = await Promise.all([
-        getGradeDashboard(subject, cohortMonth, cohortYear, initialStudentId, { month: enrollmentMonth, year: enrollmentYear }),
+        getGradeDashboard(subject, cohortMonth, cohortYear, initialStudentId),
         getTemplates(subject),
       ])
       setDashboard(dash)
@@ -78,7 +76,7 @@ export default function GradeDashboard({ teacherSubjects, initialStudentId, init
     } finally {
       setLoading(false)
     }
-  }, [subject, cohortMonth, cohortYear, initialStudentId, enrollmentMonth, enrollmentYear])
+  }, [subject, cohortMonth, cohortYear, initialStudentId])
 
   useEffect(() => { loadData() }, [loadData])
 
@@ -240,7 +238,7 @@ export default function GradeDashboard({ teacherSubjects, initialStudentId, init
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label style={{ fontSize: '0.78rem' }}>Cohort Month</label>
-            <select className="input" value={enrollmentMonth} onChange={(e) => setEnrollmentMonth(parseInt(e.target.value))} disabled={Boolean(initialStudentId)}>
+            <select className="input" value={cohortMonth} onChange={(e) => setCohortMonth(parseInt(e.target.value))}>
               {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
             </select>
           </div>
@@ -249,26 +247,12 @@ export default function GradeDashboard({ teacherSubjects, initialStudentId, init
             <input
               className="input"
               type="number"
-              value={enrollmentYear}
+              value={cohortYear}
               min={2024}
               max={2035}
-              onChange={(e) => setEnrollmentYear(parseInt(e.target.value))}
-              disabled={Boolean(initialStudentId)}
+              onChange={(e) => setCohortYear(parseInt(e.target.value))}
               style={{ width: 80 }}
             />
-          </div>
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label style={{ fontSize: '0.78rem' }}>Grading Month</label>
-            <input className="input" type="month" value={`${cohortYear}-${String(cohortMonth).padStart(2, '0')}`}
-              onChange={(event) => {
-                if (!event.target.value) return
-                const [year, month] = event.target.value.split('-').map(Number)
-                setCohortMonth(month)
-                setCohortYear(year)
-                setScoreInputs({})
-                setImportPreview(null)
-                setImportResult(null)
-              }} />
           </div>
           <button className="btn btn-primary" onClick={loadData} disabled={loading}>
             {loading ? 'Loading…' : '↻ Refresh'}
@@ -298,9 +282,6 @@ export default function GradeDashboard({ teacherSubjects, initialStudentId, init
         </div>
 
         {error && <div className="alert alert-error" style={{ marginBottom: '0.75rem' }}>{error}</div>}
-        <p style={{ fontSize: '0.78rem', color: 'var(--gray-600)', marginBottom: '0.75rem' }}>
-          Cohort selects students by enrollment date. Grading Month selects the attendance, quiz grades, and project submissions shown. Project submissions count toward grades after teacher verification.
-        </p>
 
         <div style={{
           background: 'var(--gray-50)', border: '1px solid var(--gray-200)',
@@ -586,7 +567,7 @@ export default function GradeDashboard({ teacherSubjects, initialStudentId, init
         </div>
 
         {showClassPerformance && (
-          <ClassPerformance subject={subject} month={cohortMonth} year={cohortYear} enrollmentMonth={enrollmentMonth} enrollmentYear={enrollmentYear} onClose={() => setShowClassPerformance(false)} />
+          <ClassPerformance subject={subject} month={cohortMonth} year={cohortYear} onClose={() => setShowClassPerformance(false)} />
         )}
 
         {dashboard && (

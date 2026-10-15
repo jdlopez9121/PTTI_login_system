@@ -448,12 +448,6 @@ router.get('/dashboard', requireAuth, async (req: Request, res: Response, next: 
 
     // Month/year select an enrollment cohort, independent of the subject's
     // position in the curriculum. Keep the teacher's day/night track scope.
-    const enrollmentMonth = Number(req.query.enrollmentMonth ?? cohortMonth)
-    const enrollmentYear = Number(req.query.enrollmentYear ?? cohortYear)
-    if (!Number.isInteger(enrollmentMonth) || enrollmentMonth < 1 || enrollmentMonth > 12 || !Number.isInteger(enrollmentYear) || enrollmentYear < 1900 || enrollmentYear > 9999) {
-      res.status(400).json({ success: false, error: 'Valid enrollment month and year required' })
-      return
-    }
     const track = trackFromShift(teacher.shift)
 
     const selectedStudentId = String(req.query.studentId ?? '').trim()
@@ -461,7 +455,7 @@ router.get('/dashboard', requireAuth, async (req: Request, res: Response, next: 
     // A name shortcut shows that active student, including visitors from other rooms.
     // Subject authorization above still applies to every lookup.
     const allStudents = await prisma.student.findMany({
-      where: { isActive: true, ...(selectedStudentId ? { studentId: selectedStudentId } : { track, cohortStartMonth: enrollmentMonth, cohortStartYear: enrollmentYear }) },
+      where: { isActive: true, ...(selectedStudentId ? { studentId: selectedStudentId } : { track, cohortStartMonth: cohortMonth, cohortStartYear: cohortYear }) },
       select: { id: true, studentId: true, fullName: true, cohortStartMonth: true, cohortStartYear: true },
     })
 
