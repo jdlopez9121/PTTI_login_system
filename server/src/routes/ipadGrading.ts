@@ -2,7 +2,7 @@ import { Router } from 'express'
 import type { Shift } from '@prisma/client'
 import prisma from '../lib/prisma'
 import { requireAuth } from '../middleware/requireAuth'
-import { trackFromShift, classifyByTime } from '../services/shiftService'
+import { classifyByTime } from '../services/shiftService'
 import { schoolCalendarMonth } from '../services/monthlyAttendanceService'
 
 const router = Router()
@@ -18,7 +18,6 @@ async function context(teacherId: string, input: Record<string, unknown>) {
     return { error: 'Choose a valid grading month', status: 400 } as const
   }
   const classes = await prisma.curriculum.findMany({
-    where: { subject: { in: [teacher.subject1, teacher.subject2, teacher.subject3].filter((s): s is string => Boolean(s)) }, track: trackFromShift(teacher.shift) },
     orderBy: [{ shift: 'asc' }, { subject: 'asc' }],
   })
   const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: 'numeric', hourCycle: 'h23' }).formatToParts(new Date())
@@ -26,8 +25,10 @@ async function context(teacherId: string, input: Record<string, unknown>) {
   const currentShift = classifyByTime(new Date(2000, 0, 1, hour, minute)) ?? teacher.shift
   const selected = input.subject || input.shift
     ? classes.find(c => c.subject === input.subject && c.shift === input.shift && shifts.includes(String(input.shift)))
-    : classes.find(c => c.shift === currentShift) ?? classes.find(c => c.shift === teacher.shift) ?? classes[0]
-  if (!selected) return { error: 'No assigned class found for this subject and period', status: 403 } as const
+    : classes.find(c => c.shift === currentShift && [teacher.subject1, teacher.subject2, teacher.subject3].includes(c.subject))
+      ?? classes.find(c => c.shift === teacher.shift && c.subject === teacher.subject1)
+      ?? classes.find(c => c.shift === currentShift) ?? classes[0]
+  if (!selected) return { error: 'No class found for this subject and period', status: 403 } as const
   const candidates = await prisma.student.findMany({
     where: { isActive: true, isFloating: false, track: selected.track },
     select: { id: true, studentId: true, fullName: true, cohortStartMonth: true, cohortStartYear: true },

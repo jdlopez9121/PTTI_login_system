@@ -16,9 +16,8 @@ async function main() {
   ]
   prisma.teacher.findUnique = (async () => ({ subject1: 'PLC 1', subject2: 'PLC 2', subject3: null, shift: 'afternoon' })) as any
   prisma.curriculum.findMany = (async ({ where }: any) => {
-    assert.equal(where.track, 'day')
-    assert.deepEqual(where.subject.in, ['PLC 1', 'PLC 2'])
-    return [{ subject: 'PLC 1', shift: 'afternoon', track: 'day', programMonth: 2 }, { subject: 'PLC 2', shift: 'morning', track: 'day', programMonth: 4 }]
+    assert.equal(where, undefined, 'All curriculum subjects and periods must be available')
+    return [{ subject: 'PLC 1', shift: 'afternoon', track: 'day', programMonth: 2 }, { subject: 'PLC 2', shift: 'morning', track: 'day', programMonth: 4 }, { subject: 'DC 1', shift: 'morning', track: 'day', programMonth: 1 }]
   }) as any
   prisma.student.findMany = (async ({ where }: any) => {
     assert.deepEqual(where, { isActive: true, isFloating: false, track: 'day' })
@@ -48,7 +47,11 @@ async function main() {
     const initial = await get.json() as any
     assert.equal(get.status, 200)
     assert.deepEqual(initial.data.students.map((s: any) => s.id), ['july', 'legacy'])
-    assert.equal((await complete({ subject: 'DC 1' })).status, 403)
+    assert.ok(initial.data.classes.some((c: any) => c.subject === 'DC 1'))
+    const dc = await fetch(`${base}?subject=DC+1&shift=morning&month=8&year=2026`, { headers })
+    assert.equal(dc.status, 200)
+    assert.deepEqual((await dc.json() as any).data.students.map((s: any) => s.id), ['august'])
+    assert.equal((await complete({ subject: 'Unknown' })).status, 403)
     assert.equal((await complete({ shift: 'night' })).status, 403)
     assert.equal((await complete({ studentDbId: 'old' })).status, 403)
     assert.equal((await complete({ templateId: 'quiz' })).status, 404)

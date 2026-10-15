@@ -96,7 +96,6 @@ export default function IpadGrading() {
             <button className="ipad-complete-button" disabled={!student || !project || saving || completed || Boolean(acknowledgement)} onClick={complete}>
               {saving ? 'Saving…' : completed ? '✓ Completed · 100%' : 'Completed project'}
             </button>
-            <p>Submits and verifies at 100%</p>
           </section>
         </div>
       )}
