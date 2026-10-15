@@ -249,12 +249,7 @@ export default function GradeDashboard({ teacherSubjects, initialStudentId, init
               </span>
             )}
           </h2>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <button className="btn btn-secondary" aria-pressed={deleteMode} onClick={() => setDeleteMode((value) => !value)}>
-              {deleteMode ? 'Done Deleting' : 'Delete Student'}
-            </button>
-            <button className="modal-close" onClick={onClose}>×</button>
-          </div>
+          <button className="modal-close" onClick={onClose}>×</button>
         </div>
 
         {/* Controls row */}
@@ -294,6 +289,9 @@ export default function GradeDashboard({ teacherSubjects, initialStudentId, init
             onClick={() => setShowTemplateManager((v) => !v)}
           >
             {showTemplateManager ? 'Hide Templates' : 'Manage Templates'}
+          </button>
+          <button className="btn btn-secondary" aria-pressed={deleteMode} onClick={() => setDeleteMode((value) => !value)}>
+            {deleteMode ? 'Done Deleting' : 'Delete Student'}
           </button>
           <button
             className="btn btn-primary"
