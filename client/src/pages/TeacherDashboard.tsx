@@ -305,11 +305,11 @@ export default function TeacherDashboard() {
           initialStudentId={gradeStudent?.studentId}
           initialSubject={gradeStudent?.subject}
           initialDate={data.targetDate}
+          onStudentDeleted={() => { load() }}
           onClose={() => { setShowGrades(false); setGradeStudent(null) }}
         />
       )}
 
-          onStudentDeleted={() => { load() }}
       {showWorkOrders && (
         <WorkOrderDashboard
           assigneeFilter={{ date: data?.targetDate ?? filterDate, shift: data?.currentShift ?? filterShift }}
