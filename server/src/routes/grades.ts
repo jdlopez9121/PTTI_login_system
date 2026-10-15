@@ -446,35 +446,22 @@ router.get('/dashboard', requireAuth, async (req: Request, res: Response, next: 
       return
     }
 
-    // Find curriculum entry to get programMonth for this subject.
-    // Use track (day/night) instead of the teacher's stored shift so that a day-track
-    // teacher can access both morning and afternoon subjects (e.g. PLC 1 = afternoon, PLC 2 = morning).
+    // Month/year select an enrollment cohort, independent of the subject's
+    // position in the curriculum. Keep the teacher's day/night track scope.
     const track = trackFromShift(teacher.shift)
-    const curriculum = await prisma.curriculum.findFirst({ where: { subject, track } })
-    if (!curriculum) {
-      res.status(404).json({ success: false, error: 'No curriculum entry found for this subject and shift' })
-      return
-    }
 
     const selectedStudentId = String(req.query.studentId ?? '').trim()
 
     // A name shortcut shows that active student, including visitors from other rooms.
     // Subject authorization above still applies to every lookup.
     const allStudents = await prisma.student.findMany({
-      where: { isActive: true, ...(selectedStudentId ? { studentId: selectedStudentId } : { track }) },
+      where: { isActive: true, ...(selectedStudentId ? { studentId: selectedStudentId } : { track, cohortStartMonth: cohortMonth, cohortStartYear: cohortYear }) },
       select: { id: true, studentId: true, fullName: true, cohortStartMonth: true, cohortStartYear: true },
-    })
-
-    const students = allStudents.filter((s) => {
-      if (selectedStudentId) return true
-      if (s.cohortStartYear === null) return false
-      const pm = (cohortYear - s.cohortStartYear) * 12 + cohortMonth - s.cohortStartMonth + 1
-      return pm >= 1 && pm <= 5 && pm === curriculum.programMonth
     })
 
     // Calculate grade for each student
     const grades = await Promise.all(
-      students.map(async (s) => {
+      allStudents.map(async (s) => {
         const grade = await calculateGrade(
           s.id, subject, cohortMonth, cohortYear
         )

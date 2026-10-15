@@ -237,13 +237,13 @@ export default function GradeDashboard({ teacherSubjects, initialStudentId, init
             </select>
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
-            <label style={{ fontSize: '0.78rem' }}>Month</label>
+            <label style={{ fontSize: '0.78rem' }}>Cohort Month</label>
             <select className="input" value={cohortMonth} onChange={(e) => setCohortMonth(parseInt(e.target.value))}>
               {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
             </select>
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
-            <label style={{ fontSize: '0.78rem' }}>Year</label>
+            <label style={{ fontSize: '0.78rem' }}>Cohort Year</label>
             <input
               className="input"
               type="number"
