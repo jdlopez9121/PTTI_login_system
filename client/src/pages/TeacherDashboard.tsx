@@ -79,7 +79,7 @@ export default function TeacherDashboard() {
   const studentGradeLink = (student: StudentResult) => (
     <button type="button" onClick={() => openStudentGrades(student)}
       title={`View grades for ${formatDisplayName(student.fullName)}`}
-      style={{ background: 'none', border: 0, padding: 0, color: 'var(--primary, #2563eb)', font: 'inherit', textAlign: 'left', textDecoration: 'underline', cursor: 'pointer' }}>
+      style={{ background: 'none', border: 0, padding: 0, color: 'inherit', font: 'inherit', textAlign: 'left', cursor: 'pointer' }}>
       {formatDisplayName(student.fullName)}
     </button>
   )
