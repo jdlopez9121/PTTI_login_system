@@ -17,8 +17,8 @@ async function main() {
   prisma.teacher.findUnique = (async () => ({ subject1: 'PLC 1', subject2: 'PLC 2', subject3: null, shift: 'morning' })) as any
   prisma.student.findMany = (async ({ where }: any) => roster.filter((student) => Object.entries(where).every(([key, value]) => student[key as keyof typeof student] === value))) as any
   prisma.curriculum.findFirst = (async () => { throw new Error('Roster must not depend on subject curriculum') }) as any
-  prisma.gradeTemplate.findMany = (async () => []) as any
-  prisma.gradeEntry.findMany = (async () => []) as any
+  prisma.gradeTemplate.findMany = (async ({ where }: any) => where.type === 'project' ? [{ id: 'project', name: 'Project 1' }] : []) as any
+  prisma.gradeEntry.findMany = (async ({ where }: any) => where.studentId === 'oct26' && where.cohortMonth === 11 && where.cohortYear === 2026 ? [{ templateId: 'project', id: 'entry', score: 85, submittedAt: new Date(), verifiedAt: new Date() }] : []) as any
   prisma.attendanceLog.findMany = (async () => []) as any
 
   const app = express()
@@ -45,6 +45,15 @@ async function main() {
     assert.equal((await lookup('PLC 1', 13)).status, 400)
     assert.equal((await fetch(`${base}?subject=PLC+1&cohortMonth=10&cohortYear=2026`)).status, 401)
     assert.deepEqual((await lookup('PLC 1', 1)).body.data.students, [])
+    const laterMonth = await fetch(`${base}?subject=PLC+1&cohortMonth=11&cohortYear=2026&enrollmentMonth=10&enrollmentYear=2026`, { headers })
+    const later = await laterMonth.json() as any
+    assert.equal(laterMonth.status, 200)
+    assert.deepEqual(later.data.students.map((student: any) => student.studentId), ['100'])
+    assert.equal(later.data.students[0].project.percent, 85)
+    assert.ok(later.data.students[0].project.entries[0].submittedAt)
+    assert.ok(later.data.students[0].project.entries[0].verifiedAt)
+    assert.equal((await lookup('PLC 1')).body.data.students[0].project.percent, 0)
+    assert.equal((await fetch(`${base}?subject=PLC+1&cohortMonth=11&cohortYear=2026&enrollmentMonth=13`, { headers })).status, 400)
     console.log('Grade dashboard cohort roster checks passed')
   } finally {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()))
