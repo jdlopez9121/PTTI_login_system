@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import LoginPage from './pages/LoginPage'
 import TeacherDashboard from './pages/TeacherDashboard'
+import IpadGrading from './pages/IpadGrading'
 import SchoolWideView from './pages/SchoolWideView'
 import VerifyEmail from './pages/VerifyEmail'
 import StudentWorkOrderPanel from './components/StudentWorkOrderPanel'
@@ -14,6 +15,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <Routes>
         <Route path="/" element={<LoginPage />} />
         <Route path="/teacher" element={<TeacherDashboard />} />
+        <Route path="/ipad-grading" element={<IpadGrading />} />
         <Route path="/school-wide" element={<SchoolWideView />} />
         <Route path="/student-work-orders" element={<StudentWorkOrderPanel />} />
         <Route path="/verify-email" element={<VerifyEmail />} />

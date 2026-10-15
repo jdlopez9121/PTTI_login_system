@@ -109,6 +109,10 @@ export default function TeacherDashboard() {
             Work Orders
           </button>
           <button className="btn btn-secondary" style={{ background: 'rgba(255,255,255,0.15)', color: '#fff' }}
+            onClick={() => navigate('/ipad-grading')}>
+            Ipad Grading
+          </button>
+          <button className="btn btn-secondary" style={{ background: 'rgba(255,255,255,0.15)', color: '#fff' }}
             onClick={handleLogout}>
             Log Out
           </button>

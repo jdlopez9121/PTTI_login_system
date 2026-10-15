@@ -1,0 +1,22 @@
+.ipad-grading { min-height: 100dvh; padding: 20px; background: #f4f5f7; }
+.ipad-toolbar { display: flex; align-items: end; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+.ipad-toolbar label { display: grid; gap: 6px; font-size: 14px; font-weight: 600; }
+.ipad-toolbar .input { min-height: 48px; font-size: 17px; }
+.ipad-columns { display: grid; grid-template-columns: 1.15fr 1fr 1fr; gap: 20px; align-items: start; }
+.ipad-students { display: grid; gap: 8px; }
+.ipad-student { min-height: 62px; padding: 16px; text-align: left; font: inherit; font-size: 19px; color: #202b36; background: white; border: 2px solid #dfe3e8; border-radius: 10px; cursor: pointer; touch-action: manipulation; }
+.ipad-student.selected { background: #dce8f3; border-color: #315d86; font-weight: 700; box-shadow: inset 4px 0 #315d86; }
+.ipad-done { display: block; margin-top: 6px; font-size: 14px; color: #315c3b; }
+.ipad-projects, .ipad-complete { position: sticky; top: 20px; display: grid; gap: 20px; padding: 22px; background: white; border-radius: 12px; }
+.ipad-projects h1 { font-size: 24px; }
+.ipad-project-select { min-height: 56px; font-size: 18px; }
+.ipad-project-name { font-size: 22px; line-height: 1.5; overflow-wrap: anywhere; }
+.ipad-selected-name { font-size: 24px; font-weight: 650; overflow-wrap: anywhere; }
+.ipad-complete-button { min-height: 200px; padding: 24px; font: inherit; font-size: 30px; font-weight: 700; line-height: 1.3; background: #dceade; color: #274c30; border: 2px solid #a8c5ae; border-radius: 14px; cursor: pointer; touch-action: manipulation; }
+.ipad-complete-button:disabled { opacity: .5; cursor: default; }
+.ipad-grading button:focus-visible, .ipad-grading select:focus-visible { outline: 3px solid #315d86; outline-offset: 3px; }
+.ipad-acknowledgement { position: fixed; inset: 0; z-index: 2000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; padding: 30px; background: #c8dfce; color: #244b2d; text-align: center; font-size: clamp(26px, 4vw, 56px); }
+.ipad-acknowledgement strong { font-size: clamp(42px, 7vw, 90px); }
+.ipad-ack-check { font-size: 90px; }
+@media (max-width: 850px) { .ipad-grading { padding: 12px; } .ipad-columns { gap: 10px; grid-template-columns: 1.1fr 1fr 1fr; } .ipad-projects, .ipad-complete { padding: 12px; } .ipad-student { padding: 12px; font-size: 17px; } .ipad-complete-button { padding: 12px; font-size: 24px; } }
+@media (max-width: 560px) { .ipad-columns { grid-template-columns: 1fr; } .ipad-projects, .ipad-complete { position: static; } }

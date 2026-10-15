@@ -5,6 +5,7 @@ import cookieParser from 'cookie-parser'
 import cors from 'cors'
 import authRouter from './routes/auth'
 import studentsRouter from './routes/students'
+import ipadGradingRouter from './routes/ipadGrading'
 import teacherRouter from './routes/teacher'
 import roomsRouter from './routes/rooms'
 import schoolwideRouter from './routes/schoolwide'
@@ -61,6 +62,7 @@ app.get('/uploads/work-order-templates/:filename', async (req, res, next) => {
 app.use('/api/auth', authRouter)
 app.use('/api/student', studentsRouter)
 app.use('/api/students', studentsRouter)
+app.use('/api/ipad-grading', ipadGradingRouter)
 app.use('/api/teacher', teacherRouter)
 app.use('/api/rooms', roomsRouter)
 app.use('/api/school-wide', schoolwideRouter)
