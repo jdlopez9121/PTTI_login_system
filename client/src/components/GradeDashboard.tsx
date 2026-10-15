@@ -4,6 +4,7 @@ import {
   type GradeTemplate,
   type GradeType,
   getGradeDashboard,
+  deleteStudent,
   getTemplates,
   createTemplate,
   deleteTemplate,
@@ -26,6 +27,7 @@ interface Props {
   initialSubject?: string
   initialDate?: string
   onClose: () => void
+  onStudentDeleted?: () => void
 }
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
@@ -35,7 +37,7 @@ type StudentGradeRow = GradeDashboardData['students'][number]
 const getPendingProjectEntries = (student: StudentGradeRow) =>
   student.project.entries.filter((entry) => Boolean(entry.entryId && entry.submittedAt && !entry.verifiedAt))
 
-export default function GradeDashboard({ teacherSubjects, initialStudentId, initialSubject, initialDate, onClose }: Props) {
+export default function GradeDashboard({ teacherSubjects, initialStudentId, initialSubject, initialDate, onClose, onStudentDeleted }: Props) {
   const now = initialStudentId && initialDate ? new Date(`${initialDate.slice(0, 10)}T12:00:00`) : new Date()
   const [subject, setSubject] = useState(initialSubject && teacherSubjects.includes(initialSubject) ? initialSubject : teacherSubjects[0] ?? '')
   const [cohortMonth, setCohortMonth] = useState(now.getMonth() + 1)
@@ -46,6 +48,11 @@ export default function GradeDashboard({ teacherSubjects, initialStudentId, init
   const [error, setError] = useState('')
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
   const [showTemplateManager, setShowTemplateManager] = useState(false)
+  const [deleteMode, setDeleteMode] = useState(false)
+  const [studentToDelete, setStudentToDelete] = useState<StudentGradeRow | null>(null)
+  const [deleteConfirmation, setDeleteConfirmation] = useState('')
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
   const [showClassPerformance, setShowClassPerformance] = useState(false)
   const [savingEntry, setSavingEntry] = useState<string | null>(null)
   const [autoVerifying, setAutoVerifying] = useState<string | null>(null)
@@ -79,6 +86,23 @@ export default function GradeDashboard({ teacherSubjects, initialStudentId, init
   }, [subject, cohortMonth, cohortYear, initialStudentId])
 
   useEffect(() => { loadData() }, [loadData])
+
+  const handleDeleteStudent = async () => {
+    if (!studentToDelete || deleting || deleteConfirmation.trim() !== studentToDelete.studentId) return
+    setDeleting(true)
+    setDeleteError('')
+    try {
+      await deleteStudent(studentToDelete.dbId, deleteConfirmation.trim())
+      setDashboard((previous) => previous ? { ...previous, students: previous.students.filter((student) => student.dbId !== studentToDelete.dbId) } : previous)
+      setStudentToDelete(null)
+      setDeleteConfirmation('')
+      onStudentDeleted?.()
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : 'Failed to delete student')
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   const toggleRow = (dbId: string) =>
     setExpandedRows((prev) => {
@@ -225,7 +249,12 @@ export default function GradeDashboard({ teacherSubjects, initialStudentId, init
               </span>
             )}
           </h2>
-          <button className="modal-close" onClick={onClose}>×</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <button className="btn btn-secondary" aria-pressed={deleteMode} onClick={() => setDeleteMode((value) => !value)}>
+              {deleteMode ? 'Done Deleting' : 'Delete Student'}
+            </button>
+            <button className="modal-close" onClick={onClose}>×</button>
+          </div>
         </div>
 
         {/* Controls row */}
@@ -424,6 +453,15 @@ export default function GradeDashboard({ teacherSubjects, initialStudentId, init
                     </td>
                     <td>{student.studentId}</td>
                     <td>
+                      {deleteMode && (
+                        <button type="button" aria-label={`Delete ${formatDisplayName(student.fullName)}, ID ${student.studentId}`}
+                          title="Permanently delete student" onClick={(event) => {
+                            event.stopPropagation()
+                            setStudentToDelete(student)
+                            setDeleteConfirmation('')
+                            setDeleteError('')
+                          }} style={{ background: '#f1dedd', color: '#85413e', border: '1px solid #ddbdbb', borderRadius: 4, cursor: 'pointer', marginRight: '0.5rem', padding: '0.1rem 0.45rem', fontSize: '1rem' }}>×</button>
+                      )}
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
                         {formatDisplayName(student.fullName)}
                         {pendingProjectCount > 0 && (
@@ -565,6 +603,26 @@ export default function GradeDashboard({ teacherSubjects, initialStudentId, init
             </table>
           )}
         </div>
+
+        {studentToDelete && (
+          <div className="modal-overlay" style={{ zIndex: 1200 }}>
+            <div className="modal" role="alertdialog" aria-modal="true" aria-labelledby="delete-student-title" aria-describedby="delete-student-description" style={{ width: 'min(480px, 95vw)' }}>
+              <div className="modal-header"><h2 id="delete-student-title">Permanently Delete Student</h2></div>
+              <p id="delete-student-description" style={{ marginBottom: '1rem' }}>
+                Delete {formatDisplayName(studentToDelete.fullName)} (ID {studentToDelete.studentId}) and all their grades and attendance records across every subject and month? This cannot be undone.
+              </p>
+              <label htmlFor="delete-student-confirmation">Type student ID {studentToDelete.studentId} to confirm</label>
+              <input id="delete-student-confirmation" className="input" value={deleteConfirmation} onChange={(event) => setDeleteConfirmation(event.target.value)} autoFocus disabled={deleting} autoComplete="off" />
+              {deleteError && <div className="alert alert-error" role="alert">{deleteError}</div>}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1rem' }}>
+                <button className="btn btn-secondary" onClick={() => setStudentToDelete(null)} disabled={deleting}>Cancel</button>
+                <button className="btn btn-primary" style={{ background: '#85413e' }} disabled={deleting || deleteConfirmation.trim() !== studentToDelete.studentId} onClick={handleDeleteStudent}>
+                  {deleting ? 'Deleting…' : 'Permanently Delete'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {showClassPerformance && (
           <ClassPerformance subject={subject} month={cohortMonth} year={cohortYear} onClose={() => setShowClassPerformance(false)} />

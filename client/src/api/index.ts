@@ -23,6 +23,8 @@ export type Teacher = {
 export type StudentResult = {
   logId?: string; studentId: string; fullName: string; cohortStartMonth: number; loginTime?: string; room?: string; shift?: string; subject?: string
 }
+export const deleteStudent = (id: string, studentId: string) =>
+  request<{ studentId: string }>(`/students/${encodeURIComponent(id)}`, { method: 'DELETE', body: JSON.stringify({ studentId }) })
 export type DashboardData = {
   teacher: Teacher
   currentShift: string

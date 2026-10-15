@@ -10,6 +10,25 @@ const router = Router()
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } })
 const STATIC_ROOMS = ['PLC Room', 'AC Room', 'DC Room', 'MT/HT Room']
 
+// Permanently remove a student and their records in one transaction.
+router.delete('/:id', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const teacher = await prisma.teacher.findUnique({ where: { id: req.teacher!.teacherId }, select: { id: true } })
+    if (!teacher) { res.status(403).json({ success: false, error: 'Teacher account not found' }); return }
+    const student = await prisma.student.findUnique({ where: { id: req.params.id }, select: { id: true, studentId: true } })
+    if (!student) { res.status(404).json({ success: false, error: 'Student not found' }); return }
+    if (req.body?.studentId !== student.studentId) {
+      res.status(400).json({ success: false, error: 'Student ID confirmation does not match' }); return
+    }
+    await prisma.$transaction(async (tx) => {
+      await tx.attendanceLog.deleteMany({ where: { studentId: student.id } })
+      await tx.gradeEntry.deleteMany({ where: { studentId: student.id } })
+      await tx.student.delete({ where: { id: student.id } })
+    })
+    res.json({ success: true, data: { studentId: student.studentId } })
+  } catch (err) { next(err) }
+})
+
 // POST /api/student/login — kiosk login, no auth required
 router.post('/login', async (req: Request, res: Response, next: NextFunction) => {
   try {

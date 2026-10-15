@@ -309,6 +309,7 @@ export default function TeacherDashboard() {
         />
       )}
 
+          onStudentDeleted={() => { load() }}
       {showWorkOrders && (
         <WorkOrderDashboard
           assigneeFilter={{ date: data?.targetDate ?? filterDate, shift: data?.currentShift ?? filterShift }}
