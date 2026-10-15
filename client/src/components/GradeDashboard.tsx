@@ -290,7 +290,8 @@ export default function GradeDashboard({ teacherSubjects, initialStudentId, init
           >
             {showTemplateManager ? 'Hide Templates' : 'Manage Templates'}
           </button>
-          <button className="btn btn-secondary" aria-pressed={deleteMode} onClick={() => setDeleteMode((value) => !value)}>
+          <button className="btn btn-secondary" aria-pressed={deleteMode} onClick={() => setDeleteMode((value) => !value)}
+            style={{ background: '#f1dedd', color: '#85413e', border: '1px solid #ddbdbb' }}>
             {deleteMode ? 'Done Deleting' : 'Delete Student'}
           </button>
           <button
