@@ -29,6 +29,7 @@ export default function TeacherDashboard() {
   const [showLoginStudent, setShowLoginStudent] = useState(false)
   const [showAddTeacher, setShowAddTeacher] = useState(false)
   const [showGrades, setShowGrades] = useState(false)
+  const [gradeStudent, setGradeStudent] = useState<StudentResult | null>(null)
   const [showWorkOrders, setShowWorkOrders] = useState(false)
   const lastLoadRequestRef = useRef(0)
 
@@ -69,6 +70,19 @@ export default function TeacherDashboard() {
     await logout()
     navigate('/')
   }
+
+  const openStudentGrades = (student: StudentResult) => {
+    setGradeStudent(data?.theoreticalHeadcount.find((s) => s.studentId === student.studentId) ?? student)
+    setShowGrades(true)
+  }
+
+  const studentGradeLink = (student: StudentResult) => (
+    <button type="button" onClick={() => openStudentGrades(student)}
+      title={`View grades for ${formatDisplayName(student.fullName)}`}
+      style={{ background: 'none', border: 0, padding: 0, color: 'var(--primary, #2563eb)', font: 'inherit', textAlign: 'left', textDecoration: 'underline', cursor: 'pointer' }}>
+      {formatDisplayName(student.fullName)}
+    </button>
+  )
 
   return (
     <ErrorBoundary>
@@ -145,7 +159,7 @@ export default function TeacherDashboard() {
                         const dataRow = (
                           <tr key={s.logId ?? s.studentId} style={{ opacity: isMine ? 1 : 0.6 }}>
                             <td>{s.studentId}</td>
-                            <td>{formatDisplayName(s.fullName)}</td>
+                            <td>{studentGradeLink(s)}</td>
                             <td>{s.cohortStartMonth ? MONTHS[s.cohortStartMonth - 1] : '—'}</td>
                             <td>{s.room}</td>
                             {data.currentShift === 'all' && (
@@ -244,7 +258,7 @@ export default function TeacherDashboard() {
                       return (
                         <tr key={s.studentId}>
                           <td>{s.studentId}</td>
-                          <td>{formatDisplayName(s.fullName)}</td>
+                          <td>{studentGradeLink(s)}</td>
                           <td>{s.cohortStartMonth ? MONTHS[s.cohortStartMonth - 1] : '—'}</td>
                           <td>
                             <span className={`badge ${isPresent ? 'badge-green' : 'badge-gray'}`}>
@@ -288,7 +302,10 @@ export default function TeacherDashboard() {
         <GradeDashboard
           teacherSubjects={[data.teacher.subject1, data.teacher.subject2, data.teacher.subject3].filter((s): s is string => Boolean(s))}
           teacherShift={data.teacher.shift}
-          onClose={() => setShowGrades(false)}
+          initialStudentId={gradeStudent?.studentId}
+          initialSubject={gradeStudent?.subject}
+          initialDate={data.targetDate}
+          onClose={() => { setShowGrades(false); setGradeStudent(null) }}
         />
       )}
 

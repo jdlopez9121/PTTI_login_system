@@ -456,13 +456,17 @@ router.get('/dashboard', requireAuth, async (req: Request, res: Response, next: 
       return
     }
 
-    // Match the roster to the selected grading month and the subject track.
+    const selectedStudentId = String(req.query.studentId ?? '').trim()
+
+    // A name shortcut shows that active student, including visitors from other rooms.
+    // Subject authorization above still applies to every lookup.
     const allStudents = await prisma.student.findMany({
-      where: { isActive: true, track },
+      where: { isActive: true, ...(selectedStudentId ? { studentId: selectedStudentId } : { track }) },
       select: { id: true, studentId: true, fullName: true, cohortStartMonth: true, cohortStartYear: true },
     })
 
     const students = allStudents.filter((s) => {
+      if (selectedStudentId) return true
       if (s.cohortStartYear === null) return false
       const pm = (cohortYear - s.cohortStartYear) * 12 + cohortMonth - s.cohortStartMonth + 1
       return pm >= 1 && pm <= 5 && pm === curriculum.programMonth

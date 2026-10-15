@@ -21,7 +21,7 @@ export type Teacher = {
   subject1: string; subject2: string | null; subject3: string | null; shift: string
 }
 export type StudentResult = {
-  logId?: string; studentId: string; fullName: string; cohortStartMonth: number; loginTime?: string; room?: string; shift?: string
+  logId?: string; studentId: string; fullName: string; cohortStartMonth: number; loginTime?: string; room?: string; shift?: string; subject?: string
 }
 export type DashboardData = {
   teacher: Teacher
@@ -450,8 +450,8 @@ export const autoVerifySubmittedProjects = (data: { subject: string; cohortMonth
   request<{ verifiedCount: number }>('/grades/entries/auto-verify', { method: 'POST', body: JSON.stringify(data) })
 
 // Dashboard
-export const getGradeDashboard = (subject: string, cohortMonth: number, cohortYear: number) =>
-  request<GradeDashboard>(`/grades/dashboard?subject=${encodeURIComponent(subject)}&cohortMonth=${cohortMonth}&cohortYear=${cohortYear}`)
+export const getGradeDashboard = (subject: string, cohortMonth: number, cohortYear: number, studentId?: string) =>
+  request<GradeDashboard>(`/grades/dashboard?subject=${encodeURIComponent(subject)}&cohortMonth=${cohortMonth}&cohortYear=${cohortYear}${studentId ? `&studentId=${encodeURIComponent(studentId)}` : ''}`)
 export const previewQuizGradeImport = (data: { file: File; subject: string; cohortMonth: number; cohortYear: number }) =>
   uploadQuizGradeSpreadsheet<QuizGradeImportPreview>('/grades/import/preview', data)
 export const applyQuizGradeImport = (data: { file: File; subject: string; cohortMonth: number; cohortYear: number }) =>

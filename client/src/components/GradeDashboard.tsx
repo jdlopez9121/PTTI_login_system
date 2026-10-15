@@ -21,6 +21,9 @@ import MonthlyAttendance from './MonthlyAttendance'
 interface Props {
   teacherSubjects: string[]
   teacherShift: string
+  initialStudentId?: string
+  initialSubject?: string
+  initialDate?: string
   onClose: () => void
 }
 
@@ -31,9 +34,9 @@ type StudentGradeRow = GradeDashboardData['students'][number]
 const getPendingProjectEntries = (student: StudentGradeRow) =>
   student.project.entries.filter((entry) => Boolean(entry.entryId && entry.submittedAt && !entry.verifiedAt))
 
-export default function GradeDashboard({ teacherSubjects, onClose }: Props) {
-  const now = new Date()
-  const [subject, setSubject] = useState(teacherSubjects[0] ?? '')
+export default function GradeDashboard({ teacherSubjects, initialStudentId, initialSubject, initialDate, onClose }: Props) {
+  const now = initialStudentId && initialDate ? new Date(`${initialDate.slice(0, 10)}T12:00:00`) : new Date()
+  const [subject, setSubject] = useState(initialSubject && teacherSubjects.includes(initialSubject) ? initialSubject : teacherSubjects[0] ?? '')
   const [cohortMonth, setCohortMonth] = useState(now.getMonth() + 1)
   const [cohortYear, setCohortYear] = useState(now.getFullYear())
   const [dashboard, setDashboard] = useState<GradeDashboardData | null>(null)
@@ -58,17 +61,20 @@ export default function GradeDashboard({ teacherSubjects, onClose }: Props) {
     setError('')
     try {
       const [dash, tmpl] = await Promise.all([
-        getGradeDashboard(subject, cohortMonth, cohortYear),
+        getGradeDashboard(subject, cohortMonth, cohortYear, initialStudentId),
         getTemplates(subject),
       ])
       setDashboard(dash)
+      if (initialStudentId) {
+        setExpandedRows(new Set(dash.students.filter((student) => student.studentId === initialStudentId).map((student) => student.dbId)))
+      }
       setTemplates(tmpl)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load grades')
     } finally {
       setLoading(false)
     }
-  }, [subject, cohortMonth, cohortYear])
+  }, [subject, cohortMonth, cohortYear, initialStudentId])
 
   useEffect(() => { loadData() }, [loadData])
 
