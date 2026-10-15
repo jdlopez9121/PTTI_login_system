@@ -2,12 +2,12 @@
 .ipad-toolbar { display: flex; align-items: end; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
 .ipad-toolbar label { display: grid; gap: 6px; font-size: 14px; font-weight: 600; }
 .ipad-toolbar .input { min-height: 48px; font-size: 17px; }
-.ipad-columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; width: 100%; max-width: 1200px; margin: 0 auto; flex: 1; min-height: 0; }
+.ipad-columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: minmax(0, 1fr); align-items: stretch; gap: 20px; width: 100%; max-width: 1200px; margin: 0 auto; flex: 1; min-height: 0; }
 .ipad-students { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
 .ipad-student { flex-shrink: 0; min-height: 62px; padding: 16px; text-align: left; font: inherit; font-size: 19px; color: #202b36; background: white; border: 2px solid #dfe3e8; border-radius: 10px; cursor: pointer; touch-action: manipulation; }
 .ipad-student.selected { background: #dce8f3; border-color: #315d86; font-weight: 700; box-shadow: inset 4px 0 #315d86; }
 .ipad-done { display: block; margin-top: 6px; font-size: 14px; color: #315c3b; }
-.ipad-students, .ipad-projects, .ipad-complete { min-width: 0; min-height: 0; padding: 18px; background: #eef0f2; border: 1px solid #d2d8df; border-radius: 14px; }
+.ipad-students, .ipad-projects, .ipad-complete { height: 100%; min-width: 0; min-height: 0; padding: 18px; background: #eef0f2; border: 1px solid #d2d8df; border-radius: 14px; }
 .ipad-projects, .ipad-complete { display: flex; flex-direction: column; gap: 24px; overflow-y: auto; }
 .ipad-projects h1 { font-size: 24px; }
 .ipad-project-select { min-height: 56px; font-size: 18px; }
@@ -20,7 +20,7 @@
 .ipad-acknowledgement strong { font-size: clamp(42px, 7vw, 90px); }
 .ipad-ack-check { font-size: 90px; }
 @media (max-width: 850px) { .ipad-grading { padding: 12px; } .ipad-columns { gap: 10px; grid-template-columns: repeat(3, minmax(0, 1fr)); } .ipad-projects, .ipad-complete { padding: 12px; } .ipad-student { padding: 12px; font-size: 17px; } .ipad-complete-button { padding: 12px; font-size: 24px; } }
-@media (max-width: 560px) { .ipad-grading { height: auto; min-height: 100dvh; overflow: visible; } .ipad-students { max-height: 45dvh; } .ipad-columns { grid-template-columns: 1fr; } .ipad-projects, .ipad-complete { position: static; } }
+@media (max-width: 560px) { .ipad-grading { height: auto; min-height: 100dvh; overflow: visible; } .ipad-columns { grid-template-columns: 1fr; grid-template-rows: repeat(3, max(380px, 45dvh)); } .ipad-projects, .ipad-complete { position: static; } }
 
 .ipad-toolbar { flex-shrink: 0; }
 .ipad-project-select { flex-shrink: 0; }
