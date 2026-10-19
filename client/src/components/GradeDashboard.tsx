@@ -58,6 +58,7 @@ export default function GradeDashboard({ teacherSubjects, initialStudentId, init
   const [showClassPerformance, setShowClassPerformance] = useState(false)
   const [savingEntry, setSavingEntry] = useState<string | null>(null)
   const [autoVerifying, setAutoVerifying] = useState<string | null>(null)
+  const [verificationMessage, setVerificationMessage] = useState('')
   const [scoreInputs, setScoreInputs] = useState<Record<string, string>>({})
   const [newTemplate, setNewTemplate] = useState<{ type: GradeType; name: string; description: string }>({ type: 'quiz', name: '', description: '' })
   const [addingTemplate, setAddingTemplate] = useState(false)
@@ -70,6 +71,7 @@ export default function GradeDashboard({ teacherSubjects, initialStudentId, init
     if (!subject) return
     setLoading(true)
     setError('')
+    setVerificationMessage('')
     try {
       const [dash, tmpl] = await Promise.all([
         getGradeDashboard(subject, cohortMonth, cohortYear, initialStudentId, gradeMonth, gradeYear),
@@ -154,11 +156,13 @@ export default function GradeDashboard({ teacherSubjects, initialStudentId, init
   }
 
   const handleAutoVerifySubmitted = async (studentDbId?: string) => {
+    if (!dashboard || loading || autoVerifying !== null) return
     const scopeKey = studentDbId ? `student_${studentDbId}` : 'class'
     setAutoVerifying(scopeKey)
     setError('')
+    setVerificationMessage('')
     try {
-      await autoVerifySubmittedProjects({
+      const result = await autoVerifySubmittedProjects({
         subject,
         cohortMonth: gradeMonth,
         cohortYear: gradeYear,
@@ -166,6 +170,9 @@ export default function GradeDashboard({ teacherSubjects, initialStudentId, init
         ...(!studentDbId ? { studentDbIds: dashboard?.students.map((student) => student.dbId) ?? [] } : {}),
       })
       await loadData()
+      setVerificationMessage(result.verifiedCount > 0
+        ? `Verified ${result.verifiedCount} submitted project${result.verifiedCount === 1 ? '' : 's'} at 100%.`
+        : 'No projects were verified. Check the grading month and year, then refresh to reload pending submissions.')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to auto-verify submissions')
     } finally {
@@ -323,6 +330,7 @@ export default function GradeDashboard({ teacherSubjects, initialStudentId, init
         </div>
 
         {error && <div className="alert alert-error" style={{ marginBottom: '0.75rem' }}>{error}</div>}
+        {verificationMessage && <div role="status" style={{ marginBottom: '0.75rem' }}>{verificationMessage}</div>}
 
         <div style={{
           background: 'var(--gray-50)', border: '1px solid var(--gray-200)',
@@ -550,7 +558,7 @@ export default function GradeDashboard({ teacherSubjects, initialStudentId, init
                                 <button
                                   className="btn btn-primary"
                                   style={{ padding: '0.2rem 0.6rem', fontSize: '0.78rem' }}
-                                  disabled={autoVerifying !== null}
+                                  disabled={loading || autoVerifying !== null}
                                   onClick={(e) => {
                                     e.stopPropagation()
                                     handleAutoVerifySubmitted(student.dbId)
