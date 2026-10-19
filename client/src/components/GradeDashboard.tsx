@@ -42,6 +42,8 @@ export default function GradeDashboard({ teacherSubjects, initialStudentId, init
   const [subject, setSubject] = useState(initialSubject && teacherSubjects.includes(initialSubject) ? initialSubject : teacherSubjects[0] ?? '')
   const [cohortMonth, setCohortMonth] = useState(now.getMonth() + 1)
   const [cohortYear, setCohortYear] = useState(now.getFullYear())
+  const [gradeMonth, setGradeMonth] = useState(now.getMonth() + 1)
+  const [gradeYear, setGradeYear] = useState(now.getFullYear())
   const [dashboard, setDashboard] = useState<GradeDashboardData | null>(null)
   const [templates, setTemplates] = useState<GradeTemplate[]>([])
   const [loading, setLoading] = useState(false)
@@ -70,7 +72,7 @@ export default function GradeDashboard({ teacherSubjects, initialStudentId, init
     setError('')
     try {
       const [dash, tmpl] = await Promise.all([
-        getGradeDashboard(subject, cohortMonth, cohortYear, initialStudentId),
+        getGradeDashboard(subject, cohortMonth, cohortYear, initialStudentId, gradeMonth, gradeYear),
         getTemplates(subject),
       ])
       setDashboard(dash)
@@ -83,7 +85,7 @@ export default function GradeDashboard({ teacherSubjects, initialStudentId, init
     } finally {
       setLoading(false)
     }
-  }, [subject, cohortMonth, cohortYear, initialStudentId])
+  }, [subject, cohortMonth, cohortYear, initialStudentId, gradeMonth, gradeYear])
 
   useEffect(() => { loadData() }, [loadData])
 
@@ -122,7 +124,7 @@ export default function GradeDashboard({ teacherSubjects, initialStudentId, init
     setSavingEntry(key)
     setError('')
     try {
-      await saveGradeEntry({ templateId, studentDbId, score, cohortMonth, cohortYear })
+      await saveGradeEntry({ templateId, studentDbId, score, cohortMonth: gradeMonth, cohortYear: gradeYear })
       setScoreInputs((prev) => { const next = { ...prev }; delete next[key]; return next })
       await loadData()
     } catch (err) {
@@ -158,8 +160,8 @@ export default function GradeDashboard({ teacherSubjects, initialStudentId, init
     try {
       await autoVerifySubmittedProjects({
         subject,
-        cohortMonth,
-        cohortYear,
+        cohortMonth: gradeMonth,
+        cohortYear: gradeYear,
         ...(studentDbId ? { studentDbId } : {}),
         ...(!studentDbId ? { studentDbIds: dashboard?.students.map((student) => student.dbId) ?? [] } : {}),
       })
@@ -203,7 +205,7 @@ export default function GradeDashboard({ teacherSubjects, initialStudentId, init
     setError('')
     setImportResult(null)
     try {
-      const preview = await previewQuizGradeImport({ file: importFile, subject, cohortMonth, cohortYear })
+      const preview = await previewQuizGradeImport({ file: importFile, subject, cohortMonth: gradeMonth, cohortYear: gradeYear })
       setImportPreview(preview)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to preview quiz grades')
@@ -217,7 +219,7 @@ export default function GradeDashboard({ teacherSubjects, initialStudentId, init
     setImporting(true)
     setError('')
     try {
-      const result = await applyQuizGradeImport({ file: importFile, subject, cohortMonth, cohortYear })
+      const result = await applyQuizGradeImport({ file: importFile, subject, cohortMonth: gradeMonth, cohortYear: gradeYear })
       setImportResult(result)
       setImportPreview(null)
       setImportFile(null)
@@ -277,6 +279,17 @@ export default function GradeDashboard({ teacherSubjects, initialStudentId, init
               onChange={(e) => setCohortYear(parseInt(e.target.value))}
               style={{ width: 80 }}
             />
+          </div>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label style={{ fontSize: '0.78rem' }}>Grading Month</label>
+            <select className="input" value={gradeMonth} onChange={(e) => { setGradeMonth(Number(e.target.value)); setScoreInputs({}); setImportPreview(null) }}>
+              {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+            </select>
+          </div>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label style={{ fontSize: '0.78rem' }}>Grading Year</label>
+            <input className="input" type="number" value={gradeYear} min={2024} max={2035}
+              onChange={(e) => { setGradeYear(Number(e.target.value)); setScoreInputs({}); setImportPreview(null) }} style={{ width: 80 }} />
           </div>
           <button className="btn btn-primary" onClick={loadData} disabled={loading}>
             {loading ? 'Loading…' : '↻ Refresh'}
@@ -624,7 +637,7 @@ export default function GradeDashboard({ teacherSubjects, initialStudentId, init
         )}
 
         {showClassPerformance && (
-          <ClassPerformance subject={subject} month={cohortMonth} year={cohortYear} onClose={() => setShowClassPerformance(false)} />
+          <ClassPerformance subject={subject} month={cohortMonth} year={cohortYear} gradeMonth={gradeMonth} gradeYear={gradeYear} onClose={() => setShowClassPerformance(false)} />
         )}
 
         {dashboard && (

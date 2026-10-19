@@ -9,8 +9,8 @@ const TIERS = [
   { name: 'Needs Support', minimum: 0, range: 'Below 75%', background: '#f1dedd', color: '#85413e' },
 ]
 
-export default function ClassPerformance({ subject, month, year, onClose }: {
-  subject: string; month: number; year: number; onClose: () => void
+export default function ClassPerformance({ subject, month, year, gradeMonth, gradeYear, onClose }: {
+  subject: string; month: number; year: number; gradeMonth?: number; gradeYear?: number; onClose: () => void
 }) {
   const [students, setStudents] = useState<StudentGrade[]>([])
   const [loading, setLoading] = useState(true)
@@ -21,13 +21,13 @@ export default function ClassPerformance({ subject, month, year, onClose }: {
     setLoading(true)
     setError('')
     // Always load the class roster, even when opened from a single student's grades.
-    getGradeDashboard(subject, month, year).then((data) => {
+    getGradeDashboard(subject, month, year, undefined, gradeMonth, gradeYear).then((data) => {
       if (!cancelled) setStudents(data.students)
     }).catch((err) => {
       if (!cancelled) setError(err instanceof Error ? err.message : 'Unable to load class performance')
     }).finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [subject, month, year])
+  }, [subject, month, year, gradeMonth, gradeYear])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -55,7 +55,7 @@ export default function ClassPerformance({ subject, month, year, onClose }: {
         </div>
         <p style={{ marginBottom: '0.5rem', fontWeight: 600 }}>{subject} · {new Intl.DateTimeFormat('en-US', { month: 'long' }).format(new Date(year, month - 1, 1))} {year}</p>
         <p style={{ fontSize: '0.8rem', color: 'var(--gray-600)', marginBottom: '1rem' }}>
-          Ranked by overall grade: attendance 10%, quizzes 15%, projects 75%. Equal scores share a rank. Grades reflect currently recorded work.
+          Grading period: {gradeMonth ?? new Date().getMonth() + 1}/{gradeYear ?? new Date().getFullYear()}. Ranked by overall grade: attendance 10%, quizzes 15%, projects 75%. Equal scores share a rank. Grades reflect currently recorded work.
         </p>
         <div style={{ overflowY: 'auto', minHeight: 0 }} aria-live="polite">
           {loading ? <p>Loading class performance…</p> : error ? <div className="alert alert-error">{error}</div> : students.length === 0 ? (

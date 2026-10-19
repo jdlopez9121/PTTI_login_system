@@ -17,8 +17,13 @@ async function main() {
   prisma.teacher.findUnique = (async () => ({ subject1: 'PLC 1', subject2: 'PLC 2', subject3: null, shift: 'morning' })) as any
   prisma.student.findMany = (async ({ where }: any) => roster.filter((student) => Object.entries(where).every(([key, value]) => student[key as keyof typeof student] === value))) as any
   prisma.curriculum.findFirst = (async () => { throw new Error('Roster must not depend on subject curriculum') }) as any
-  prisma.gradeTemplate.findMany = (async () => []) as any
-  prisma.gradeEntry.findMany = (async () => []) as any
+  prisma.gradeTemplate.findMany = (async ({ where }: any) => where.type === 'quiz' ? [{ id: 'plc-quiz', name: 'PLC Quiz' }] : []) as any
+  const gradeQueries: any[] = []
+  prisma.gradeEntry.findMany = (async ({ where }: any) => {
+    gradeQueries.push(where)
+    return where.studentId === 'sep26' && where.cohortMonth === 10 && where.cohortYear === 2026
+      ? [{ templateId: 'plc-quiz', score: 85 }] : []
+  }) as any
   prisma.attendanceLog.findMany = (async () => []) as any
 
   const app = express()
@@ -29,7 +34,7 @@ async function main() {
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/grades/dashboard`
   const headers = { Cookie: `token=${jwt.sign({ teacherId: 't1' }, process.env.JWT_SECRET ?? 'dev-secret')}` }
   async function lookup(subject: string, month = 10, year = 2026, studentId = '') {
-    const response = await fetch(`${base}?${new URLSearchParams({ subject, cohortMonth: String(month), cohortYear: String(year), studentId })}`, { headers })
+    const response = await fetch(`${base}?${new URLSearchParams({ subject, cohortMonth: String(month), cohortYear: String(year), studentId, gradeMonth: '10', gradeYear: '2026' })}`, { headers })
     return { status: response.status, body: await response.json() as any }
   }
   try {
@@ -38,7 +43,15 @@ async function main() {
       assert.equal(result.status, 200)
       assert.deepEqual(result.body.data.students.map((student: any) => student.studentId), ['100'])
     }
-    assert.equal((await lookup('PLC 1', 9)).body.data.students[0].studentId, '102')
+    const september = await lookup('PLC 1', 9)
+    assert.equal(september.body.data.students[0].studentId, '102')
+    assert.equal(september.body.data.students[0].quiz.entries[0].score, 85)
+    assert.equal(september.body.data.gradeMonth, 10)
+    assert.equal(gradeQueries.at(-1).cohortMonth, 10)
+    assert.equal((await lookup('PLC 1', 10, 2026, '102')).body.data.students[0].quiz.entries[0].score, 85)
+    const historical = await fetch(base + '?subject=PLC+1&cohortMonth=9&cohortYear=2026&gradeMonth=9&gradeYear=2026', { headers })
+    assert.equal((await historical.json() as any).data.students[0].quiz.entries[0].score, null)
+    assert.equal((await fetch(base + '?subject=PLC+1&cohortMonth=9&cohortYear=2026&gradeMonth=13', { headers })).status, 400)
     assert.equal((await lookup('PLC 2', 10, 2025)).body.data.students[0].studentId, '101')
     assert.equal((await lookup('PLC 1', 10, 2026, '103')).body.data.students[0].studentId, '103')
     assert.equal((await lookup('DC 1')).status, 403)

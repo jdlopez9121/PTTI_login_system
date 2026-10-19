@@ -434,6 +434,15 @@ router.get('/dashboard', requireAuth, async (req: Request, res: Response, next: 
       return
     }
 
+    // Cohort dates select enrollment; grading dates select when work was recorded.
+    const currentPeriod = schoolCalendarMonth(new Date())
+    const gradeMonth = Number(req.query.gradeMonth ?? currentPeriod.month)
+    const gradeYear = Number(req.query.gradeYear ?? currentPeriod.year)
+    if (!Number.isInteger(gradeMonth) || gradeMonth < 1 || gradeMonth > 12 || !Number.isInteger(gradeYear) || gradeYear < 1900 || gradeYear > 9999) {
+      res.status(400).json({ success: false, error: 'Valid gradeMonth and gradeYear required' })
+      return
+    }
+
     // Verify teacher teaches this subject
     const teacher = await prisma.teacher.findUnique({ where: { id: req.teacher!.teacherId } })
     if (!teacher) {
@@ -463,13 +472,13 @@ router.get('/dashboard', requireAuth, async (req: Request, res: Response, next: 
     const grades = await Promise.all(
       allStudents.map(async (s) => {
         const grade = await calculateGrade(
-          s.id, subject, cohortMonth, cohortYear
+          s.id, subject, gradeMonth, gradeYear
         )
         return { studentId: s.studentId, fullName: s.fullName, dbId: s.id, ...grade }
       })
     )
 
-    res.json({ success: true, data: { subject, cohortMonth, cohortYear, students: grades, message: grades.length === 0 ? "student cohort has not been uploaded yet to the system" : null } })
+    res.json({ success: true, data: { subject, cohortMonth, cohortYear, gradeMonth, gradeYear, students: grades, message: grades.length === 0 ? "student cohort has not been uploaded yet to the system" : null } })
   } catch (err) { next(err) }
 })
 
