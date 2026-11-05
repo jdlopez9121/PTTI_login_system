@@ -29,7 +29,11 @@ function parseTrack(groups: string): Track | null {
 export async function importStudentsFromBuffer(fileBuffer: Buffer): Promise<ImportResult> {
   const workbook = XLSX.read(fileBuffer, { type: 'buffer' })
 
-  const normalize = (value: unknown) => String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]/g, '')
+  const normalize = (value: unknown) => {
+    const key = String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]/g, '')
+    return key === 'badge' ? 'badgeid' : key
+  }
+  const programHeaders = ['program', 'course', 'programname', 'prog']
   const sheets = [...workbook.SheetNames].sort((a, b) => Number(normalize(b) === 'fullpop') - Number(normalize(a) === 'fullpop'))
   let rows: unknown[][] = []
   let headerIndex = -1
@@ -37,13 +41,14 @@ export async function importStudentsFromBuffer(fileBuffer: Buffer): Promise<Impo
     const candidate = XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[name], { header: 1, defval: '' })
     const index = candidate.findIndex((row) => {
       const headers = row.map(normalize)
-      return (headers.includes('badgeid') || headers.includes('acct')) && headers.includes('groups') &&
-        ['start', 'startdate', 'enrollmentstartdate'].some((key) => headers.includes(key)) &&
+      return (headers.includes('badgeid') || headers.includes('acct')) &&
+        (headers.includes('groups') || programHeaders.some((key) => headers.includes(key))) &&
+        ['start', 'startdate', 'enrollmentstartdate', 'createdon'].some((key) => headers.includes(key)) &&
         (headers.includes('name') || (headers.includes('firstname') && headers.includes('lastname')))
     })
     if (index >= 0) { rows = candidate; headerIndex = index; break }
   }
-  if (headerIndex < 0) return { added: 0, skipped: 0, errors: ['No roster headers found. Required: Badge ID (or legacy Acct), Name (or First Name and Last Name), Start date, and Groups.'] }
+  if (headerIndex < 0) return { added: 0, skipped: 0, errors: ['No roster headers found. Required: Badge ID, BADGE, or legacy Acct; Name (or First Name and Last Name); Start date (or CREATED ON); and Groups (or a Program containing DAY/EVE).'] }
   const headers = rows[headerIndex].map(normalize)
   const badgeFormat = headers.includes('badgeid')
 
@@ -62,8 +67,9 @@ export async function importStudentsFromBuffer(fileBuffer: Buffer): Promise<Impo
 
     const acct = String(get(badgeFormat ? 'Badge ID' : 'Acct') ?? '').trim()
     const nameRaw = String(get('Name') ?? '').trim() || [get('Last Name'), get('First Name')].map((part) => String(part ?? '').trim()).filter(Boolean).join(', ')
-    const startRaw = get('Enrollment Start Date') ?? get('Start Date') ?? get('Start')
-    const groupsRaw = String(get('Groups') ?? '').trim()
+    // Account exports supply CREATED ON instead of an enrollment date. Explicit
+    // enrollment columns take precedence, including invalid values for validation.
+    const startRaw = get('Enrollment Start Date') ?? get('Start Date') ?? get('Start') ?? get('Created On')
 
     if (row.every((value) => String(value ?? '').trim() === '')) continue
 
@@ -71,6 +77,8 @@ export async function importStudentsFromBuffer(fileBuffer: Buffer): Promise<Impo
     const programValue = String(
       get('Program') ?? get('Course') ?? get('Program Name') ?? get('Prog') ?? ''
     ).trim().toLowerCase()
+    // Account exports embed the shift in PROGRAM; explicit Groups takes priority.
+    const groupsRaw = String(get('Groups') ?? programValue).trim()
 
     // Only import Manufacturing & Automation Training students.
     // If program column is found and doesn't match, skip the row.
@@ -95,7 +103,7 @@ export async function importStudentsFromBuffer(fileBuffer: Buffer): Promise<Impo
       }
     }
     if (!cohort) {
-      errors.push(`Row ${i + 1}: invalid or missing Start date for ID "${acct}"`)
+      errors.push(`Row ${i + 1}: invalid or missing Start date / CREATED ON for ID "${acct}"`)
       continue
     }
 
